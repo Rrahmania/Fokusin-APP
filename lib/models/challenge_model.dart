@@ -2,15 +2,10 @@ import 'package:flutter/material.dart';
 
 class ChallengeModel {
   final String title;
-
   final String description;
-
   final int target;
-
   int progress;
-
   final int reward;
-
   final IconData icon;
 
   ChallengeModel({
@@ -23,20 +18,13 @@ class ChallengeModel {
   });
 
   double get percentage {
-    if (target == 0) {
-      return 0;
-    }
-
+    if (target == 0) return 0;
     return progress / target;
   }
 
-  bool get isCompleted {
-    return progress >= target;
-  }
+  bool get isCompleted => progress >= target;
 
   void addProgress() {
-    if (progress < target) {
-      progress++;
-    }
+    if (progress < target) progress++;
   }
 }

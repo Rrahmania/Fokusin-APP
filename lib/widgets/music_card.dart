@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../models/music_model.dart';
+import '../services/storage_service.dart';
+import '../screens/music_player_screen.dart';
 
 class MusicCard extends StatefulWidget {
   const MusicCard({super.key});
@@ -9,265 +12,112 @@ class MusicCard extends StatefulWidget {
 }
 
 class _MusicCardState extends State<MusicCard> {
-  bool isPlaying = false;
+  MusicTrack current = defaultPlaylist.first;
 
-  String selectedMusic = 'Rain Sounds';
-
-  final List<String> musicList = [
-    'Rain Sounds',
-    'Forest Sounds',
-    'Ocean Waves',
-    'Piano Relax',
-  ];
-
-  void toggleMusic() {
-    setState(() {
-      isPlaying = !isPlaying;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(milliseconds: 900),
-        content: Text(
-          isPlaying
-              ? '$selectedMusic sedang dimainkan 🎧'
-              : 'Music dihentikan.',
-        ),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    AppTheme.themeNotifier.addListener(_onThemeChanged);
   }
 
-  void chooseMusic() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(25),
-        ),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Choose Relaxing Music',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.darkTeal,
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                ...musicList.map(
-                      (music) {
-                    final isSelected =
-                        music == selectedMusic;
-
-                    return ListTile(
-                      contentPadding:
-                      EdgeInsets.zero,
-
-                      leading: Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightTeal,
-                          borderRadius:
-                          BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          _getMusicIcon(music),
-                          color: AppTheme.darkTeal,
-                        ),
-                      ),
-
-                      title: Text(
-                        music,
-                        style: TextStyle(
-                          fontWeight:
-                          isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-
-                      subtitle: const Text(
-                        'Relax & Focus',
-                      ),
-
-                      trailing: isSelected
-                          ? const Icon(
-                        Icons.check_circle,
-                        color:
-                        AppTheme.primaryTeal,
-                      )
-                          : null,
-
-                      onTap: () {
-                        setState(() {
-                          selectedMusic = music;
-                          isPlaying = false;
-                        });
-
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  @override
+  void dispose() {
+    AppTheme.themeNotifier.removeListener(_onThemeChanged);
+    super.dispose();
   }
 
-  IconData _getMusicIcon(String music) {
-    switch (music) {
-      case 'Rain Sounds':
-        return Icons.water_drop;
+  void _onThemeChanged() {
+    if (mounted) setState(() {});
+  }
 
-      case 'Forest Sounds':
-        return Icons.forest;
+  Future<void> _load() async {
+    final saved = await StorageService.loadSelectedMusic();
+    final track = defaultPlaylist.firstWhere(
+          (t) => t.title == saved,
+      orElse: () => defaultPlaylist.first,
+    );
+    if (!mounted) return;
+    setState(() => current = track);
+  }
 
-      case 'Ocean Waves':
-        return Icons.waves;
-
-      case 'Piano Relax':
-        return Icons.piano;
-
-      default:
-        return Icons.music_note;
-    }
+  void _openPlayer() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MusicPlayerScreen(initialTrack: current),
+      ),
+    );
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-
-      padding: const EdgeInsets.all(16),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-
-        borderRadius: BorderRadius.circular(20),
-
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-
-      child: Row(
-        children: [
-          // =====================================================
-          // MUSIC ICON
-          // =====================================================
-
-          Container(
-            width: 58,
-            height: 58,
-
-            decoration: BoxDecoration(
-              color: AppTheme.lightTeal,
-
-              borderRadius:
-              BorderRadius.circular(16),
+    return GestureDetector(
+      onTap: _openPlayer,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          // 👇 INI KUNCINYA: pakai AppTheme.card biar ikut tema
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-
-            child: Icon(
-              _getMusicIcon(selectedMusic),
-              color: AppTheme.darkTeal,
-              size: 28,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: current.color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(current.icon, color: current.color, size: 26),
             ),
-          ),
-
-          const SizedBox(width: 14),
-
-          // =====================================================
-          // MUSIC INFORMATION
-          // =====================================================
-
-          Expanded(
-            child: GestureDetector(
-              onTap: chooseMusic,
-
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
-
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    selectedMusic,
-
-                    style: const TextStyle(
+                    current.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppTheme.textDark,
+                      fontSize: 15,
+                      // 👇 pakai AppTheme.txt biar dinamis
+                      color: AppTheme.txt,
                     ),
                   ),
-
-                  const SizedBox(height: 4),
-
+                  const SizedBox(height: 3),
                   Text(
-                    isPlaying
-                        ? 'Playing • Relax & Focus'
-                        : 'Tap to choose music',
-
-                    style: const TextStyle(
-                      color: AppTheme.textGrey,
+                    '${current.artist} • Tap to open player',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      // 👇 pakai AppTheme.txtGrey
+                      color: AppTheme.txtGrey,
                       fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-
-          // =====================================================
-          // PLAY BUTTON
-          // =====================================================
-
-          IconButton(
-            onPressed: toggleMusic,
-
-            icon: Icon(
-              isPlaying
-                  ? Icons.pause_circle_filled
-                  : Icons.play_circle_fill,
-
+            const Icon(
+              Icons.play_circle_fill,
               color: AppTheme.primaryTeal,
-
-              size: 40,
+              size: 38,
             ),
-          ),
-
-          // =====================================================
-          // MUSIC MENU
-          // =====================================================
-
-          IconButton(
-            onPressed: chooseMusic,
-
-            icon: const Icon(
-              Icons.more_vert,
-              color: AppTheme.textGrey,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
