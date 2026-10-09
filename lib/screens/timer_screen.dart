@@ -30,6 +30,42 @@ class _TimerScreenState extends State<TimerScreen> {
   // Index preset yang sedang aktif (-1 = tidak ada)
   int activeCustomIndex = -1;
 
+  // Aktivitas yang dipilih sebelum sesi dimulai
+  String selectedActivity = 'Belajar';
+  final List<Map<String, dynamic>> activities = [
+    {'name': 'Belajar', 'icon': Icons.menu_book_rounded},
+    {'name': 'Coding', 'icon': Icons.code_rounded},
+    {'name': 'Mengerjakan Tugas', 'icon': Icons.assignment_rounded},
+    {'name': 'Bekerja', 'icon': Icons.work_outline_rounded},
+    {'name': 'Membaca', 'icon': Icons.auto_stories_rounded},
+    {'name': 'Lainnya', 'icon': Icons.more_horiz_rounded},
+  ];
+
+  // Pilihan musik hanya sebagai tampilan UI, belum memutar audio.
+  String selectedMusic = 'Lo-fi Focus';
+  final List<Map<String, dynamic>> musicOptions = [
+    {
+      'name': 'Lo-fi Focus',
+      'subtitle': 'Musik latar untuk fokus',
+      'icon': Icons.headphones_rounded,
+    },
+    {
+      'name': 'Calm Piano',
+      'subtitle': 'Musik instrumental yang tenang',
+      'icon': Icons.piano_rounded,
+    },
+    {
+      'name': 'Ambient',
+      'subtitle': 'Musik latar santai',
+      'icon': Icons.spa_rounded,
+    },
+    {
+      'name': 'Tanpa Musik',
+      'subtitle': 'Fokus dalam keheningan',
+      'icon': Icons.volume_off_rounded,
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +94,12 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
+  void _selectMusic(Map<String, dynamic> music) {
+    setState(() {
+      selectedMusic = music['name'] as String;
+    });
+  }
+
   // Pilih preset 15/25/45
   void selectPreset(int minutes) {
     timer?.cancel();
@@ -77,6 +119,11 @@ class _TimerScreenState extends State<TimerScreen> {
     final m = p['minutes'] as int;
     final s = p['seconds'] as int;
 
+    // Jika preset dibuat untuk aktivitas tertentu, aktifkan aktivitas itu juga.
+    final savedLabel = p['label'] as String? ?? '';
+    final activityFromPreset = savedLabel.contains(' • ')
+        ? savedLabel.split(' • ').first
+        : null;
     timer?.cancel();
     setState(() {
       selectedMinutes = m;
@@ -85,6 +132,10 @@ class _TimerScreenState extends State<TimerScreen> {
       isRunning = false;
       activePreset = null;
       activeCustomIndex = index;
+      if (activityFromPreset != null &&
+          activities.any((a) => a['name'] == activityFromPreset)) {
+        selectedActivity = activityFromPreset;
+      }
     });
   }
 
@@ -315,7 +366,8 @@ class _TimerScreenState extends State<TimerScreen> {
       await StorageService.saveCustomPreset(
         minutes: totalMinutes,
         seconds: tempSeconds,
-        label: _formatLabel(totalMinutes, tempSeconds),
+        // Nama preset menyimpan aktivitas agar preset mudah dikenali.
+        label: '$selectedActivity • ${_formatLabel(totalMinutes, tempSeconds)}',
       );
 
       // Reload presets
@@ -339,7 +391,7 @@ class _TimerScreenState extends State<TimerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Preset disimpan: ${_formatLabel(totalMinutes, tempSeconds)} ✓'),
+              'Preset disimpan: $selectedActivity • ${_formatLabel(totalMinutes, tempSeconds)} ✓'),
           backgroundColor: AppTheme.darkTeal,
         ),
       );
@@ -367,13 +419,13 @@ class _TimerScreenState extends State<TimerScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Pomodoro Complete 🎉'),
+            title: Text('$selectedActivity selesai! 🎉'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                    'Great job! Kamu berhasil menyelesaikan sesi fokus.'),
+                Text(
+                    'Great job! Kamu berhasil menyelesaikan sesi $selectedActivity.'),
                 if (result.xpGained > 0) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -413,6 +465,59 @@ class _TimerScreenState extends State<TimerScreen> {
       }
       setState(() => remainingSeconds--);
     });
+  }
+
+  Future<void> _confirmEndSession() async {
+    final shouldEnd = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        icon: const Icon(Icons.favorite_rounded,
+            color: AppTheme.primaryTeal, size: 34),
+        title: const Text('Yakin ingin menyerah?'),
+        content: Text(
+          'Sesi $selectedActivity masih berjalan. Kamu sudah meluangkan waktu untuk fokus—mau lanjut sedikit lagi?',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primaryTeal,
+                side: const BorderSide(color: AppTheme.primaryTeal),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13)),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              child: const Text('Tidak, lanjut fokus 💪'),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('Ya, akhiri sesi'),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldEnd != true || !mounted) return;
+    timer?.cancel();
+    setState(() {
+      isRunning = false;
+      remainingSeconds = selectedMinutes * 60 + selectedSeconds;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sesi fokus diakhiri. Coba lagi kapan saja!')),
+    );
   }
 
   void resetTimer() {
@@ -489,7 +594,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppTheme.txtGrey),
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 22),
 
                 // TIMER CIRCLE
                 Container(
@@ -535,9 +640,70 @@ class _TimerScreenState extends State<TimerScreen> {
                           style: TextStyle(
                               color: AppTheme.txtGrey, fontSize: 13),
                         ),
+                        const SizedBox(height: 5),
+                        Text(
+                          selectedActivity.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppTheme.primaryTeal,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(height: 25),
+
+                // PILIH AKTIVITAS SEBELUM MEMULAI POMODORO
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Mau fokus mengerjakan apa?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.txt,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: activities.map((activity) {
+                    final name = activity['name'] as String;
+                    final selected = selectedActivity == name;
+                    return ChoiceChip(
+                      avatar: Icon(
+                        activity['icon'] as IconData,
+                        size: 18,
+                        color: selected ? Colors.white : AppTheme.primaryTeal,
+                      ),
+                      label: Text(name),
+                      selected: selected,
+                      onSelected: isRunning
+                          ? null
+                          : (_) => setState(() => selectedActivity = name),
+                      selectedColor: AppTheme.primaryTeal,
+                      backgroundColor: AppTheme.card,
+                      labelStyle: TextStyle(
+                        color: selected ? Colors.white : AppTheme.txt,
+                        fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                      ),
+                      side: BorderSide(
+                        color: selected
+                            ? AppTheme.primaryTeal
+                            : AppTheme.txtGrey.withOpacity(0.2),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 25),
 
@@ -641,22 +807,161 @@ class _TimerScreenState extends State<TimerScreen> {
 
                 const SizedBox(height: 25),
 
-                // START BUTTON
-                SizedBox(
+                // PILIH MUSIK PENDAMPING
+                Container(
                   width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton.icon(
-                    onPressed: startTimer,
-                    icon: Icon(isRunning ? Icons.pause : Icons.play_arrow),
-                    label: Text(isRunning ? 'Pause' : 'Start Focus'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryTeal,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.card,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppTheme.txtGrey.withOpacity(0.15),
                     ),
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryTeal.withOpacity(0.13),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.music_note_rounded,
+                              color: AppTheme.primaryTeal,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Musik Pendamping',
+                                  style: TextStyle(
+                                    color: AppTheme.txt,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Opsional untuk menemani sesi fokus',
+                                  style: TextStyle(
+                                    color: AppTheme.txtGrey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ...musicOptions.map((music) {
+                        final name = music['name'] as String;
+                        final selected = selectedMusic == name;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppTheme.primaryTeal.withOpacity(0.10)
+                                : AppTheme.bg,
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(
+                              color: selected
+                                  ? AppTheme.primaryTeal
+                                  : AppTheme.txtGrey.withOpacity(0.12),
+                            ),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 2,
+                            ),
+                            leading: Icon(
+                              music['icon'] as IconData,
+                              color: AppTheme.primaryTeal,
+                            ),
+                            title: Text(
+                              name,
+                              style: TextStyle(
+                                color: AppTheme.txt,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: Text(
+                              music['subtitle'] as String,
+                              style: TextStyle(
+                                color: AppTheme.txtGrey,
+                                fontSize: 11,
+                              ),
+                            ),
+                            trailing: Icon(
+                              selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              color: selected
+                                  ? AppTheme.primaryTeal
+                                  : AppTheme.txtGrey,
+                              size: 24,
+                            ),
+                            onTap: () => _selectMusic(music),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 25),
+
+                // Tombol fokus dan tombol akhiri yang meminta konfirmasi.
+                Row(
+                  children: [
+                    Expanded(
+                      flex: isRunning ? 3 : 1,
+                      child: SizedBox(
+                        height: 55,
+                        child: ElevatedButton.icon(
+                          onPressed: startTimer,
+                          icon: Icon(isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                          label: Text(isRunning ? 'Pause' : 'Mulai Fokus'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryTeal,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isRunning) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: SizedBox(
+                          height: 55,
+                          child: OutlinedButton.icon(
+                            onPressed: _confirmEndSession,
+                            icon: const Icon(Icons.stop_circle_outlined),
+                            label: const Text('End'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.redAccent,
+                              side: const BorderSide(color: Colors.redAccent),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextButton.icon(
@@ -773,7 +1078,7 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$m menit total',
+                  'Durasi fokus',
                   style: TextStyle(
                     fontSize: 11,
                     color: AppTheme.txtGrey,
