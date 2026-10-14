@@ -9,6 +9,9 @@ import '../screens/profil_screen.dart';
 class BottomNav extends StatefulWidget {
   const BottomNav({super.key});
 
+  // 👇 Static notifier biar halaman lain bisa pindah tab
+  static final ValueNotifier<int> navNotifier = ValueNotifier<int>(0);
+
   @override
   State<BottomNav> createState() => _BottomNavState();
 }
@@ -16,29 +19,54 @@ class BottomNav extends StatefulWidget {
 class _BottomNavState extends State<BottomNav> {
   int currentIndex = 0;
 
-  final List<Widget> pages = const [
-    HomeScreen(),
-    TimerScreen(),
-    GangScreen(),
-    ChallengeScreen(),
-    ProfilScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = BottomNav.navNotifier.value;
+    BottomNav.navNotifier.addListener(_onNavChanged);
+  }
+
+  @override
+  void dispose() {
+    BottomNav.navNotifier.removeListener(_onNavChanged);
+    super.dispose();
+  }
+
+  void _onNavChanged() {
+    if (mounted && currentIndex != BottomNav.navNotifier.value) {
+      setState(() => currentIndex = BottomNav.navNotifier.value);
+    }
+  }
+
+  Widget _getPage() {
+    switch (currentIndex) {
+      case 0:
+        return const HomeScreen();
+      case 1:
+        return const TimerScreen();
+      case 2:
+        return const GangScreen();
+      case 3:
+        return const ChallengeScreen();
+      case 4:
+        return const ProfilScreen();
+      default:
+        return const HomeScreen();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 👇 REBUILD OTOMATIS SAAT TEMA GANTI
     return ValueListenableBuilder<bool>(
       valueListenable: AppTheme.themeNotifier,
       builder: (context, dark, _) {
         return Scaffold(
           backgroundColor: AppTheme.bg,
-          body: IndexedStack(
-            index: currentIndex,
-            children: pages,
-          ),
+          body: _getPage(),
           bottomNavigationBar: NavigationBar(
             selectedIndex: currentIndex,
             onDestinationSelected: (index) {
+              BottomNav.navNotifier.value = index;
               setState(() => currentIndex = index);
             },
             backgroundColor: AppTheme.card,

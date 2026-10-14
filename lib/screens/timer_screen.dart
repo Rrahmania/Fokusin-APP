@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
-import '../services/challenge_service.dart';
+import '../services/timer_service.dart';
 
 class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key});
@@ -13,71 +12,46 @@ class TimerScreen extends StatefulWidget {
 }
 
 class _TimerScreenState extends State<TimerScreen> {
-  // Sesi aktif
-  int selectedMinutes = 25;
-  int selectedSeconds = 0;
-  int remainingSeconds = 25 * 60;
+  final ScrollController _scrollController = ScrollController();
+  final TimerService _timer = TimerService.instance;
 
-  Timer? timer;
-  bool isRunning = false;
   bool lockApp = false;
-
-  // Preset aktif (untuk highlight): 15, 25, 45, atau null untuk custom
-  int? activePreset = 25;
-
-  // Daftar custom preset tersimpan
   List<Map<String, dynamic>> customPresets = [];
-  // Index preset yang sedang aktif (-1 = tidak ada)
-  int activeCustomIndex = -1;
 
-  // Aktivitas yang dipilih sebelum sesi dimulai
-  String selectedActivity = 'Belajar';
   final List<Map<String, dynamic>> activities = [
     {'name': 'Belajar', 'icon': Icons.menu_book_rounded},
     {'name': 'Coding', 'icon': Icons.code_rounded},
-    {'name': 'Mengerjakan Tugas', 'icon': Icons.assignment_rounded},
+    {'name': 'Tugas', 'icon': Icons.assignment_rounded},
     {'name': 'Bekerja', 'icon': Icons.work_outline_rounded},
     {'name': 'Membaca', 'icon': Icons.auto_stories_rounded},
     {'name': 'Lainnya', 'icon': Icons.more_horiz_rounded},
   ];
 
-  // Pilihan musik hanya sebagai tampilan UI, belum memutar audio.
-  String selectedMusic = 'Lo-fi Focus';
   final List<Map<String, dynamic>> musicOptions = [
-    {
-      'name': 'Lo-fi Focus',
-      'subtitle': 'Musik latar untuk fokus',
-      'icon': Icons.headphones_rounded,
-    },
-    {
-      'name': 'Calm Piano',
-      'subtitle': 'Musik instrumental yang tenang',
-      'icon': Icons.piano_rounded,
-    },
-    {
-      'name': 'Ambient',
-      'subtitle': 'Musik latar santai',
-      'icon': Icons.spa_rounded,
-    },
-    {
-      'name': 'Tanpa Musik',
-      'subtitle': 'Fokus dalam keheningan',
-      'icon': Icons.volume_off_rounded,
-    },
+    {'name': 'Lo-fi Focus', 'subtitle': 'Musik latar untuk fokus', 'icon': Icons.headphones_rounded},
+    {'name': 'Calm Piano', 'subtitle': 'Musik instrumental yang tenang', 'icon': Icons.piano_rounded},
+    {'name': 'Ambient', 'subtitle': 'Musik latar santai', 'icon': Icons.spa_rounded},
+    {'name': 'Tanpa Musik', 'subtitle': 'Fokus dalam keheningan', 'icon': Icons.volume_off_rounded},
   ];
 
   @override
   void initState() {
     super.initState();
     _loadAll();
+    _timer.addListener(_onTimerChanged);
     AppTheme.themeNotifier.addListener(_onThemeChanged);
   }
 
   @override
   void dispose() {
-    timer?.cancel();
+    _timer.removeListener(_onTimerChanged);
+    _scrollController.dispose();
     AppTheme.themeNotifier.removeListener(_onThemeChanged);
     super.dispose();
+  }
+
+  void _onTimerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onThemeChanged() {
@@ -94,52 +68,31 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
-  void _selectMusic(Map<String, dynamic> music) {
-    setState(() {
-      selectedMusic = music['name'] as String;
-    });
-  }
-
-  // Pilih preset 15/25/45
-  void selectPreset(int minutes) {
-    timer?.cancel();
-    setState(() {
-      selectedMinutes = minutes;
-      selectedSeconds = 0;
-      remainingSeconds = minutes * 60;
-      isRunning = false;
-      activePreset = minutes;
-      activeCustomIndex = -1;
-    });
-  }
-
-  // Pilih custom preset dari daftar
-  void selectCustomPreset(int index) {
+  void _startPresetNow(int index) {
     final p = customPresets[index];
     final m = p['minutes'] as int;
     final s = p['seconds'] as int;
-
-    // Jika preset dibuat untuk aktivitas tertentu, aktifkan aktivitas itu juga.
     final savedLabel = p['label'] as String? ?? '';
-    final activityFromPreset = savedLabel.contains(' • ')
-        ? savedLabel.split(' • ').first
-        : null;
-    timer?.cancel();
-    setState(() {
-      selectedMinutes = m;
-      selectedSeconds = s;
-      remainingSeconds = m * 60 + s;
-      isRunning = false;
-      activePreset = null;
-      activeCustomIndex = index;
-      if (activityFromPreset != null &&
-          activities.any((a) => a['name'] == activityFromPreset)) {
-        selectedActivity = activityFromPreset;
-      }
-    });
+    final activityFromPreset =
+    savedLabel.contains(' • ') ? savedLabel.split(' • ').first : null;
+
+    _timer.selectCustomPreset(
+      minutes: m,
+      seconds: s,
+      index: index,
+      activity: activityFromPreset,
+    );
+    _timer.start();
+
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
-  // Hapus preset
   Future<void> _deleteCustomPreset(int index) async {
     final p = customPresets[index];
     final m = p['minutes'] as int;
@@ -152,14 +105,12 @@ class _TimerScreenState extends State<TimerScreen> {
         content: Text('Hapus "${_formatLabel(m, s)}" dari daftar?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hapus',
-                style: TextStyle(color: Colors.white)),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -170,10 +121,10 @@ class _TimerScreenState extends State<TimerScreen> {
     await StorageService.deleteCustomPreset(m, s);
     if (!mounted) return;
     setState(() {
-      if (activeCustomIndex == index) {
-        activeCustomIndex = -1;
-      } else if (activeCustomIndex > index) {
-        activeCustomIndex--;
+      if (_timer.activeCustomIndex == index) {
+        _timer.activeCustomIndex = -1;
+      } else if (_timer.activeCustomIndex > index) {
+        _timer.activeCustomIndex--;
       }
       customPresets.removeAt(index);
     });
@@ -191,21 +142,17 @@ class _TimerScreenState extends State<TimerScreen> {
     return '$m mnt';
   }
 
-  // ==========================================================
-  // CUSTOM TIME PICKER
-  // ==========================================================
   Future<void> _openCustomTimeDialog() async {
-    int tempHours = selectedMinutes ~/ 60;
-    int tempMinutes = selectedMinutes % 60;
-    int tempSeconds = selectedSeconds;
+    int tempHours = _timer.selectedMinutes ~/ 60;
+    int tempMinutes = _timer.selectedMinutes % 60;
+    int tempSeconds = _timer.selectedSeconds;
 
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTheme.card,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (context) {
         return Container(
           height: 420,
@@ -216,9 +163,8 @@ class _TimerScreenState extends State<TimerScreen> {
                 width: 45,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: AppTheme.txtGrey.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                    color: AppTheme.txtGrey.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(10)),
               ),
               const SizedBox(height: 15),
               Padding(
@@ -232,12 +178,11 @@ class _TimerScreenState extends State<TimerScreen> {
                             color: AppTheme.txt)),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                      padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryTeal.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                          color: AppTheme.primaryTeal.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20)),
                       child: const Text('Max 3 jam',
                           style: TextStyle(
                               color: AppTheme.primaryTeal,
@@ -251,11 +196,10 @@ class _TimerScreenState extends State<TimerScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Scroll untuk atur jam, menit & detik',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.txtGrey)),
-                ),
+                    alignment: Alignment.centerLeft,
+                    child: Text('Scroll untuk atur jam, menit & detik',
+                        style:
+                        TextStyle(fontSize: 12, color: AppTheme.txtGrey))),
               ),
               const SizedBox(height: 10),
               Expanded(
@@ -265,20 +209,17 @@ class _TimerScreenState extends State<TimerScreen> {
                         ? Brightness.dark
                         : Brightness.light,
                     textTheme: CupertinoTextThemeData(
-                      dateTimePickerTextStyle: TextStyle(
-                        color: AppTheme.txt,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                        dateTimePickerTextStyle: TextStyle(
+                            color: AppTheme.txt,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600)),
                   ),
                   child: CupertinoTimerPicker(
                     mode: CupertinoTimerPickerMode.hms,
                     initialTimerDuration: Duration(
-                      hours: tempHours,
-                      minutes: tempMinutes,
-                      seconds: tempSeconds,
-                    ),
+                        hours: tempHours,
+                        minutes: tempMinutes,
+                        seconds: tempSeconds),
                     minuteInterval: 1,
                     secondInterval: 1,
                     alignment: Alignment.center,
@@ -327,13 +268,15 @@ class _TimerScreenState extends State<TimerScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primaryTeal,
                             foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 50),
+                            padding:
+                            const EdgeInsets.symmetric(horizontal: 16),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14)),
                           ),
                           child: const Text('Simpan',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold)),
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ),
@@ -351,120 +294,40 @@ class _TimerScreenState extends State<TimerScreen> {
           tempHours * 3600 + tempMinutes * 60 + tempSeconds;
       if (totalSeconds < 1) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Minimal 1 detik'),
-            backgroundColor: AppTheme.darkTeal,
-          ),
-        );
+            backgroundColor: AppTheme.darkTeal));
         return;
       }
 
       final totalMinutes = tempHours * 60 + tempMinutes;
-
-      // Simpan ke daftar preset
       await StorageService.saveCustomPreset(
         minutes: totalMinutes,
         seconds: tempSeconds,
-        // Nama preset menyimpan aktivitas agar preset mudah dikenali.
-        label: '$selectedActivity • ${_formatLabel(totalMinutes, tempSeconds)}',
+        label:
+        '${_timer.selectedActivity} • ${_formatLabel(totalMinutes, tempSeconds)}',
       );
 
-      // Reload presets
       final presets = await StorageService.loadCustomPresets();
-
       int newIndex = presets.indexWhere((p) =>
       p['minutes'] == totalMinutes && p['seconds'] == tempSeconds);
 
-      timer?.cancel();
+      _timer.pause();
       if (!mounted) return;
       setState(() {
         customPresets = presets;
-        selectedMinutes = totalMinutes;
-        selectedSeconds = tempSeconds;
-        remainingSeconds = totalSeconds;
-        isRunning = false;
-        activePreset = null;
-        activeCustomIndex = newIndex;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Preset disimpan: $selectedActivity • ${_formatLabel(totalMinutes, tempSeconds)} ✓'),
-          backgroundColor: AppTheme.darkTeal,
-        ),
+      _timer.selectCustomPreset(
+        minutes: totalMinutes,
+        seconds: tempSeconds,
+        index: newIndex,
       );
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Preset disimpan: ${_timer.selectedActivity} • ${_formatLabel(totalMinutes, tempSeconds)} ✓'),
+          backgroundColor: AppTheme.darkTeal));
     }
-  }
-
-  void startTimer() {
-    if (isRunning) {
-      timer?.cancel();
-      setState(() => isRunning = false);
-      return;
-    }
-
-    setState(() => isRunning = true);
-
-    timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (remainingSeconds <= 0) {
-        timer.cancel();
-        setState(() => isRunning = false);
-
-        await StorageService.recordPomodoroCompleted();
-        final result = await ChallengeService.evaluate();
-
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('$selectedActivity selesai! 🎉'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                    'Great job! Kamu berhasil menyelesaikan sesi $selectedActivity.'),
-                if (result.xpGained > 0) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryTeal.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('+${result.xpGained} XP',
-                            style: const TextStyle(
-                                color: AppTheme.primaryTeal,
-                                fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
-                        ...result.newlyCompleted.map((c) => Text(
-                            '🏆 ${c.title}',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.primaryTeal))),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      setState(() => remainingSeconds--);
-    });
   }
 
   Future<void> _confirmEndSession() async {
@@ -477,9 +340,8 @@ class _TimerScreenState extends State<TimerScreen> {
             color: AppTheme.primaryTeal, size: 34),
         title: const Text('Yakin ingin menyerah?'),
         content: Text(
-          'Sesi $selectedActivity masih berjalan. Kamu sudah meluangkan waktu untuk fokus—mau lanjut sedikit lagi?',
-          textAlign: TextAlign.center,
-        ),
+            'Sesi ${_timer.selectedActivity} masih berjalan. Kamu sudah meluangkan waktu untuk fokus—mau lanjut sedikit lagi?',
+            textAlign: TextAlign.center),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           SizedBox(
@@ -510,39 +372,16 @@ class _TimerScreenState extends State<TimerScreen> {
     );
 
     if (shouldEnd != true || !mounted) return;
-    timer?.cancel();
-    setState(() {
-      isRunning = false;
-      remainingSeconds = selectedMinutes * 60 + selectedSeconds;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sesi fokus diakhiri. Coba lagi kapan saja!')),
-    );
-  }
-
-  void resetTimer() {
-    timer?.cancel();
-    setState(() {
-      remainingSeconds = selectedMinutes * 60 + selectedSeconds;
-      isRunning = false;
-    });
-  }
-
-  String get timerText {
-    final h = remainingSeconds ~/ 3600;
-    final m = (remainingSeconds % 3600) ~/ 60;
-    final s = remainingSeconds % 60;
-
-    if (h > 0) {
-      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-    }
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    _timer.reset();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Sesi fokus diakhiri. Coba lagi kapan saja!')));
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final circleSize = (screenWidth * 0.65).clamp(200.0, 280.0);
+    final isRunning = _timer.isRunning;
 
     return WillPopScope(
       onWillPop: () async {
@@ -552,13 +391,11 @@ class _TimerScreenState extends State<TimerScreen> {
             builder: (context) => AlertDialog(
               title: const Text('Timer Sedang Berjalan ⏱️'),
               content: const Text(
-                'Kamu tidak bisa keluar dari halaman ini selama timer berjalan (mode Kunci Aplikasi aktif). Hentikan timer dulu.',
-              ),
+                  'Kamu tidak bisa keluar dari halaman ini selama timer berjalan (mode Kunci Aplikasi aktif). Hentikan timer dulu.'),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK')),
               ],
             ),
           );
@@ -577,23 +414,20 @@ class _TimerScreenState extends State<TimerScreen> {
         ),
         body: SafeArea(
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
                 const SizedBox(height: 5),
-                const Text(
-                  'Stay Focused',
-                  style: TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryTeal),
-                ),
+                const Text('Stay Focused',
+                    style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryTeal)),
                 const SizedBox(height: 8),
-                Text(
-                  'Focus on your task and avoid distractions.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppTheme.txtGrey),
-                ),
+                Text('Focus on your task and avoid distractions.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.txtGrey)),
                 const SizedBox(height: 22),
 
                 // TIMER CIRCLE
@@ -603,14 +437,12 @@ class _TimerScreenState extends State<TimerScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppTheme.card,
-                    border:
-                    Border.all(color: AppTheme.primaryTeal, width: 8),
+                    border: Border.all(color: AppTheme.primaryTeal, width: 8),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primaryTeal.withOpacity(0.15),
-                        blurRadius: 25,
-                        spreadRadius: 5,
-                      ),
+                          color: AppTheme.primaryTeal.withOpacity(0.15),
+                          blurRadius: 25,
+                          spreadRadius: 5)
                     ],
                   ),
                   child: Padding(
@@ -622,88 +454,113 @@ class _TimerScreenState extends State<TimerScreen> {
                           child: Center(
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
-                              child: Text(
-                                timerText,
-                                style: const TextStyle(
-                                  fontSize: 80,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primaryTeal,
-                                  letterSpacing: 2,
-                                ),
-                              ),
+                              child: Text(_timer.timerText,
+                                  style: const TextStyle(
+                                      fontSize: 80,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primaryTeal,
+                                      letterSpacing: 2)),
                             ),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          isRunning ? 'Focusing...' : 'Ready to focus',
-                          style: TextStyle(
-                              color: AppTheme.txtGrey, fontSize: 13),
-                        ),
+                        Text(isRunning ? 'Focusing...' : 'Ready to focus',
+                            style: TextStyle(
+                                color: AppTheme.txtGrey, fontSize: 13)),
                         const SizedBox(height: 5),
-                        Text(
-                          selectedActivity.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppTheme.primaryTeal,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
+                        Text(_timer.selectedActivity.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: AppTheme.primaryTeal,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2)),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 25),
 
-                // PILIH AKTIVITAS SEBELUM MEMULAI POMODORO
+                // KATEGORI
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Mau fokus mengerjakan apa?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.txt,
-                    ),
-                  ),
+                  child: Text('Mau fokus mengerjakan apa?',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.txt)),
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: activities.map((activity) {
-                    final name = activity['name'] as String;
-                    final selected = selectedActivity == name;
-                    return ChoiceChip(
-                      avatar: Icon(
-                        activity['icon'] as IconData,
-                        size: 18,
-                        color: selected ? Colors.white : AppTheme.primaryTeal,
-                      ),
-                      label: Text(name),
-                      selected: selected,
-                      onSelected: isRunning
-                          ? null
-                          : (_) => setState(() => selectedActivity = name),
-                      selectedColor: AppTheme.primaryTeal,
-                      backgroundColor: AppTheme.card,
-                      labelStyle: TextStyle(
-                        color: selected ? Colors.white : AppTheme.txt,
-                        fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                      ),
-                      side: BorderSide(
-                        color: selected
-                            ? AppTheme.primaryTeal
-                            : AppTheme.txtGrey.withOpacity(0.2),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    );
-                  }).toList(),
+                SizedBox(
+                  height: 65,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: activities.length,
+                    itemBuilder: (context, index) {
+                      final activity = activities[index];
+                      final name = activity['name'] as String;
+                      final selected = _timer.selectedActivity == name;
+                      return GestureDetector(
+                        onTap: isRunning ? null : () => _timer.setActivity(name),
+                        child: Container(
+                          width: 68,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppTheme.primaryTeal
+                                : AppTheme.card,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selected
+                                  ? AppTheme.primaryTeal
+                                  : AppTheme.txtGrey.withOpacity(0.2),
+                              width: selected ? 2 : 1,
+                            ),
+                            boxShadow: selected
+                                ? [
+                              BoxShadow(
+                                  color: AppTheme.primaryTeal
+                                      .withOpacity(0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3))
+                            ]
+                                : [],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(activity['icon'] as IconData,
+                                  size: 22,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppTheme.primaryTeal),
+                              const SizedBox(height: 5),
+                              Padding(
+                                padding:
+                                const EdgeInsets.symmetric(horizontal: 3),
+                                child: Text(
+                                  name,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: selected
+                                        ? Colors.white
+                                        : AppTheme.txt,
+                                    fontWeight: selected
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 25),
 
@@ -717,8 +574,6 @@ class _TimerScreenState extends State<TimerScreen> {
                           color: AppTheme.txt)),
                 ),
                 const SizedBox(height: 12),
-
-                // Preset row
                 Row(
                   children: [
                     Expanded(child: _presetButton(15)),
@@ -731,9 +586,6 @@ class _TimerScreenState extends State<TimerScreen> {
                   ],
                 ),
 
-                // ==========================================
-                // DAFTAR CUSTOM PRESET
-                // ==========================================
                 if (customPresets.isNotEmpty) ...[
                   const SizedBox(height: 25),
                   Align(
@@ -750,16 +602,13 @@ class _TimerScreenState extends State<TimerScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryTeal.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${customPresets.length}',
-                            style: const TextStyle(
-                                color: AppTheme.primaryTeal,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11),
-                          ),
+                              color: AppTheme.primaryTeal.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Text('${customPresets.length}',
+                              style: const TextStyle(
+                                  color: AppTheme.primaryTeal,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11)),
                         ),
                       ],
                     ),
@@ -777,8 +626,7 @@ class _TimerScreenState extends State<TimerScreen> {
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppTheme.txtGrey.withOpacity(0.2),
-                      ),
+                          color: AppTheme.txtGrey.withOpacity(0.2)),
                     ),
                     child: Column(
                       children: [
@@ -786,20 +634,16 @@ class _TimerScreenState extends State<TimerScreen> {
                             size: 40,
                             color: AppTheme.txtGrey.withOpacity(0.5)),
                         const SizedBox(height: 10),
-                        Text(
-                          'Belum ada preset tersimpan',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.txt),
-                        ),
+                        Text('Belum ada preset tersimpan',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.txt)),
                         const SizedBox(height: 4),
-                        Text(
-                          'Tap ikon ➕ untuk menambah waktu custom',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 12, color: AppTheme.txtGrey),
-                        ),
+                        Text('Tap ikon ➕ untuk menambah waktu custom',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 12, color: AppTheme.txtGrey)),
                       ],
                     ),
                   ),
@@ -807,7 +651,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
                 const SizedBox(height: 25),
 
-                // PILIH MUSIK PENDAMPING
+                // MUSIK
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
@@ -815,8 +659,7 @@ class _TimerScreenState extends State<TimerScreen> {
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: AppTheme.txtGrey.withOpacity(0.15),
-                    ),
+                        color: AppTheme.txtGrey.withOpacity(0.15)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -826,35 +669,27 @@ class _TimerScreenState extends State<TimerScreen> {
                           Container(
                             padding: const EdgeInsets.all(9),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryTeal.withOpacity(0.13),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.music_note_rounded,
-                              color: AppTheme.primaryTeal,
-                            ),
+                                color:
+                                AppTheme.primaryTeal.withOpacity(0.13),
+                                borderRadius: BorderRadius.circular(12)),
+                            child: const Icon(Icons.music_note_rounded,
+                                color: AppTheme.primaryTeal),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Musik Pendamping',
-                                  style: TextStyle(
-                                    color: AppTheme.txt,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                Text('Musik Pendamping',
+                                    style: TextStyle(
+                                        color: AppTheme.txt,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 3),
-                                Text(
-                                  'Opsional untuk menemani sesi fokus',
-                                  style: TextStyle(
-                                    color: AppTheme.txtGrey,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                                Text('Opsional untuk menemani sesi fokus',
+                                    style: TextStyle(
+                                        color: AppTheme.txtGrey,
+                                        fontSize: 12)),
                               ],
                             ),
                           ),
@@ -863,7 +698,7 @@ class _TimerScreenState extends State<TimerScreen> {
                       const SizedBox(height: 12),
                       ...musicOptions.map((music) {
                         final name = music['name'] as String;
-                        final selected = selectedMusic == name;
+                        final selected = _timer.selectedMusic == name;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
@@ -872,46 +707,34 @@ class _TimerScreenState extends State<TimerScreen> {
                                 : AppTheme.bg,
                             borderRadius: BorderRadius.circular(13),
                             border: Border.all(
-                              color: selected
-                                  ? AppTheme.primaryTeal
-                                  : AppTheme.txtGrey.withOpacity(0.12),
-                            ),
+                                color: selected
+                                    ? AppTheme.primaryTeal
+                                    : AppTheme.txtGrey.withOpacity(0.12)),
                           ),
                           child: ListTile(
                             dense: true,
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 2,
-                            ),
-                            leading: Icon(
-                              music['icon'] as IconData,
-                              color: AppTheme.primaryTeal,
-                            ),
-                            title: Text(
-                              name,
-                              style: TextStyle(
-                                color: AppTheme.txt,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: Text(
-                              music['subtitle'] as String,
-                              style: TextStyle(
-                                color: AppTheme.txtGrey,
-                                fontSize: 11,
-                              ),
-                            ),
+                                horizontal: 12, vertical: 2),
+                            leading: Icon(music['icon'] as IconData,
+                                color: AppTheme.primaryTeal),
+                            title: Text(name,
+                                style: TextStyle(
+                                    color: AppTheme.txt,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14)),
+                            subtitle: Text(music['subtitle'] as String,
+                                style: TextStyle(
+                                    color: AppTheme.txtGrey, fontSize: 11)),
                             trailing: Icon(
-                              selected
-                                  ? Icons.check_circle_rounded
-                                  : Icons.radio_button_unchecked_rounded,
-                              color: selected
-                                  ? AppTheme.primaryTeal
-                                  : AppTheme.txtGrey,
-                              size: 24,
-                            ),
-                            onTap: () => _selectMusic(music),
+                                selected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                color: selected
+                                    ? AppTheme.primaryTeal
+                                    : AppTheme.txtGrey,
+                                size: 24),
+                            onTap: () =>
+                                _timer.setMusic(music['name'] as String),
                           ),
                         );
                       }),
@@ -920,7 +743,6 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
                 const SizedBox(height: 25),
 
-                // Tombol fokus dan tombol akhiri yang meminta konfirmasi.
                 Row(
                   children: [
                     Expanded(
@@ -928,12 +750,16 @@ class _TimerScreenState extends State<TimerScreen> {
                       child: SizedBox(
                         height: 55,
                         child: ElevatedButton.icon(
-                          onPressed: startTimer,
-                          icon: Icon(isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                          onPressed: _timer.toggle,
+                          icon: Icon(isRunning
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded),
                           label: Text(isRunning ? 'Pause' : 'Mulai Fokus'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primaryTeal,
                             foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 55),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16)),
@@ -953,7 +779,11 @@ class _TimerScreenState extends State<TimerScreen> {
                             label: const Text('End'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.redAccent,
-                              side: const BorderSide(color: Colors.redAccent),
+                              side:
+                              const BorderSide(color: Colors.redAccent),
+                              minimumSize: const Size(0, 55),
+                              padding:
+                              const EdgeInsets.symmetric(horizontal: 12),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16)),
                             ),
@@ -965,10 +795,9 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextButton.icon(
-                  onPressed: resetTimer,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Reset Timer'),
-                ),
+                    onPressed: _timer.reset,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reset Timer')),
                 const SizedBox(height: 20),
               ],
             ),
@@ -979,9 +808,9 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   Widget _presetButton(int minutes) {
-    final selected = activePreset == minutes;
+    final selected = _timer.activePreset == minutes;
     return GestureDetector(
-      onTap: () => selectPreset(minutes),
+      onTap: () => _timer.selectPreset(minutes),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
@@ -993,14 +822,11 @@ class _TimerScreenState extends State<TimerScreen> {
                   : AppTheme.txtGrey.withOpacity(0.2)),
         ),
         child: Center(
-          child: Text(
-            '$minutes m',
-            style: TextStyle(
-              color: selected ? Colors.white : AppTheme.txt,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
+          child: Text('$minutes m',
+              style: TextStyle(
+                  color: selected ? Colors.white : AppTheme.txt,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13)),
         ),
       ),
     );
@@ -1014,23 +840,20 @@ class _TimerScreenState extends State<TimerScreen> {
         decoration: BoxDecoration(
           color: AppTheme.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: AppTheme.txtGrey.withOpacity(0.2)),
+          border: Border.all(color: AppTheme.txtGrey.withOpacity(0.2)),
         ),
         child: Center(
-          child: Icon(Icons.add, size: 20, color: AppTheme.primaryTeal),
-        ),
+            child: Icon(Icons.add, size: 20, color: AppTheme.primaryTeal)),
       ),
     );
   }
 
-  // TILE CUSTOM PRESET
   Widget _customPresetTile(int index) {
     final p = customPresets[index];
     final m = p['minutes'] as int;
     final s = p['seconds'] as int;
     final label = p['label'] as String? ?? _formatLabel(m, s);
-    final isActive = activeCustomIndex == index;
+    final isActive = _timer.activeCustomIndex == index;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1041,66 +864,49 @@ class _TimerScreenState extends State<TimerScreen> {
             : AppTheme.card,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isActive
-              ? AppTheme.primaryTeal
-              : AppTheme.txtGrey.withOpacity(0.15),
-          width: isActive ? 1.5 : 1,
-        ),
+            color: isActive
+                ? AppTheme.primaryTeal
+                : AppTheme.txtGrey.withOpacity(0.15),
+            width: isActive ? 1.5 : 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.primaryTeal.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.bookmark,
-              size: 18,
-              color: AppTheme.primaryTeal,
-            ),
+                color: AppTheme.primaryTeal.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.bookmark,
+                size: 18, color: AppTheme.primaryTeal),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: isActive
-                        ? AppTheme.primaryTeal
-                        : AppTheme.txt,
-                  ),
-                ),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isActive
+                            ? AppTheme.primaryTeal
+                            : AppTheme.txt)),
                 const SizedBox(height: 2),
-                Text(
-                  'Durasi fokus',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.txtGrey,
-                  ),
-                ),
+                Text('Durasi fokus',
+                    style:
+                    TextStyle(fontSize: 11, color: AppTheme.txtGrey)),
               ],
             ),
           ),
           GestureDetector(
-            onTap: () => selectCustomPreset(index),
+            onTap: () => _startPresetNow(index),
             child: Container(
               width: 40,
               height: 40,
               decoration: const BoxDecoration(
-                color: AppTheme.primaryTeal,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.play_arrow,
-                color: Colors.white,
-                size: 22,
-              ),
+                  color: AppTheme.primaryTeal, shape: BoxShape.circle),
+              child: const Icon(Icons.play_arrow,
+                  color: Colors.white, size: 22),
             ),
           ),
           const SizedBox(width: 8),
@@ -1110,14 +916,10 @@ class _TimerScreenState extends State<TimerScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.red,
-                size: 18,
-              ),
+                  color: Colors.red.withOpacity(0.12),
+                  shape: BoxShape.circle),
+              child: const Icon(Icons.delete_outline,
+                  color: Colors.red, size: 18),
             ),
           ),
         ],

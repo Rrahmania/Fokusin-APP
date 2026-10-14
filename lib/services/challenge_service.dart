@@ -14,7 +14,6 @@ class ChallengeDefinition {
   });
 }
 
-/// Semua definisi challenge — sistem yang mengecek, bukan user.
 const List<ChallengeDefinition> challengeList = [
   ChallengeDefinition(
     id: 'pomodoro_starter',
@@ -49,8 +48,6 @@ const List<ChallengeDefinition> challengeList = [
 ];
 
 class ChallengeService {
-  /// Cek semua challenge berdasarkan statistik user.
-  /// Return list of challenge yang baru selesai (dan XP yang didapat).
   static Future<ChallengeResult> evaluate() async {
     final total = await StorageService.loadTotalPomodoro();
     final today = await StorageService.loadTodayPomodoro();
@@ -63,7 +60,6 @@ class ChallengeService {
     final newlyCompleted = <ChallengeDefinition>[];
     int xpGained = 0;
 
-    // Helper untuk cek & tandai
     Future<void> check(ChallengeDefinition def, bool condition) async {
       if (condition && !completedIds.contains(def.id)) {
         completedIds.add(def.id);
@@ -72,7 +68,6 @@ class ChallengeService {
       }
     }
 
-    // Cek satu per satu
     for (final def in challengeList) {
       switch (def.id) {
         case 'pomodoro_starter':
@@ -107,7 +102,6 @@ class ChallengeService {
     );
   }
 
-  /// Data untuk menampilkan progress tiap challenge (read-only).
   static Future<Map<String, Map<String, dynamic>>> getProgressMap() async {
     final total = await StorageService.loadTotalPomodoro();
     final today = await StorageService.loadTodayPomodoro();

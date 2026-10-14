@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
+import '../models/shop_model.dart';
+import '../widgets/framed_avatar.dart';
 import 'login_screen.dart';
+import 'shop_screen.dart';
+import 'statistics_screen.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -16,14 +20,21 @@ class _ProfilScreenState extends State<ProfilScreen> {
   int pomodoros = 0;
   int streak = 0;
   int xp = 0;
-
   bool darkMode = false;
   bool lockApp = false;
+
+  String equippedFrameId = 'default';
+
+  // 👇 Status streak
+  bool streakBroken = false;
+  int lastStreakValue = 0;
+
+  final int restoreStreakCost = 50;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _loadData();
     AppTheme.themeNotifier.addListener(_onThemeChanged);
   }
 
@@ -37,24 +48,36 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if (mounted) setState(() => darkMode = AppTheme.isDarkMode);
   }
 
-  Future<void> _loadSettings() async {
-    final n = await StorageService.getCurrentUserName();
-    final e = await StorageService.getCurrentUserEmail();
-    final lock = await StorageService.loadLockApp();
-    final total = await StorageService.loadTotalPomodoro();
-    final s = await StorageService.loadStreak();
-    final userXp = await StorageService.loadXp();
+  Future<void> _loadData() async {
+    try {
+      await StorageService.checkStreakStatus();
 
-    if (!mounted) return;
-    setState(() {
-      name = n;
-      email = e;
-      lockApp = lock;
-      pomodoros = total;
-      streak = s;
-      xp = userXp;
-      darkMode = AppTheme.isDarkMode;
-    });
+      final n = await StorageService.getCurrentUserName();
+      final e = await StorageService.getCurrentUserEmail();
+      final total = await StorageService.loadTotalPomodoro();
+      final s = await StorageService.loadStreak();
+      final userXp = await StorageService.loadXp();
+      final lock = await StorageService.loadLockApp();
+      final frame = await StorageService.loadEquippedFrame();
+      final broken = await StorageService.isStreakBroken();
+      final lastVal = await StorageService.loadLastStreakValue();
+
+      if (!mounted) return;
+      setState(() {
+        name = n;
+        email = e;
+        pomodoros = total;
+        streak = s;
+        xp = userXp;
+        lockApp = lock;
+        darkMode = AppTheme.isDarkMode;
+        equippedFrameId = frame;
+        streakBroken = broken;
+        lastStreakValue = lastVal;
+      });
+    } catch (err) {
+      print("ERROR PROFIL: $err");
+    }
   }
 
   Future<void> _toggleDarkMode(bool value) async {
@@ -67,9 +90,73 @@ class _ProfilScreenState extends State<ProfilScreen> {
     await StorageService.saveLockApp(value);
   }
 
-  // ============================================================
-  // EDIT PROFILE DIALOG (FIXED)
-  // ============================================================
+  Future<void> _openShop() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ShopScreen()),
+    );
+    _loadData();
+  }
+
+  Future<void> _openStatistics() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const StatisticsScreen()),
+    );
+    _loadData();
+  }
+
+  Future<void> _restoreStreak() async {
+    if (xp < restoreStreakCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('XP kamu tidak cukup! Butuh $restoreStreakCost XP.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Pulihkan Streak?'),
+        content: Text(
+            'Gunakan $restoreStreakCost XP untuk memulihkan streak $lastStreakValue hari kamu?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryTeal,
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            child: const Text('Pulihkan',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await StorageService.saveXp(xp - restoreStreakCost);
+    await StorageService.restoreStreak();
+
+    if (!mounted) return;
+    _loadData();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Streak $lastStreakValue hari berhasil dipulihkan! 🔥'),
+        backgroundColor: AppTheme.darkTeal,
+      ),
+    );
+  }
+
   void editProfile() {
     final nameController = TextEditingController(text: name);
     final emailController = TextEditingController(text: email);
@@ -78,9 +165,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       context: context,
       builder: (context) => Dialog(
         backgroundColor: AppTheme.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24),
         child: Padding(
           padding: const EdgeInsets.all(22),
@@ -100,19 +185,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         color: AppTheme.darkTeal, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'Edit Profile',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.txt,
-                    ),
-                  ),
+                  Text('Edit Profile',
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.txt)),
                 ],
               ),
               const SizedBox(height: 20),
-
-              // NAME FIELD
               TextField(
                 controller: nameController,
                 style: TextStyle(color: AppTheme.txt),
@@ -122,8 +202,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // EMAIL FIELD
               TextField(
                 controller: emailController,
                 style: TextStyle(color: AppTheme.txt),
@@ -134,11 +212,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 ),
               ),
               const SizedBox(height: 22),
-
-              // TOMBOL SEJAJAR
               Row(
                 children: [
-                  // CANCEL
                   Expanded(
                     child: SizedBox(
                       height: 48,
@@ -147,23 +222,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppTheme.txt,
                           side: BorderSide(
-                            color: AppTheme.txtGrey.withOpacity(0.4),
-                            width: 1.2,
-                          ),
+                              color: AppTheme.txtGrey.withOpacity(0.4),
+                              width: 1.2),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                              borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                        child: const Text('Cancel',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
-
-                  // SAVE
                   Expanded(
                     child: SizedBox(
                       height: 48,
@@ -183,10 +252,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                             return;
                           }
 
-                          await StorageService.updateCurrentUserName(
-                              newName);
-                          await StorageService.updateCurrentUserEmail(
-                              newEmail);
+                          await StorageService.updateCurrentUserName(newName);
+                          await StorageService.updateCurrentUserEmail(newEmail);
 
                           if (!mounted) return;
                           setState(() {
@@ -205,15 +272,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryTeal,
                           foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                              borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: const Text(
-                          'Save',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                        child: const Text('Save',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ),
@@ -226,122 +292,51 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  // ============================================================
-  // LOGOUT DIALOG (FIXED)
-  // ============================================================
-  void logout() {
+  void _showHelp() {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: AppTheme.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ICON + TITLE
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.logout,
-                        color: Colors.red, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.txt,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-
-              // PESAN
-              Text(
-                'Apakah kamu yakin ingin keluar dari akun ini?',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.txtGrey,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 22),
-
-              // TOMBOL SEJAJAR
-              Row(
-                children: [
-                  // CANCEL
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.txt,
-                          side: BorderSide(
-                            color: AppTheme.txtGrey.withOpacity(0.4),
-                            width: 1.2,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // LOGOUT
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          await StorageService.logout();
-                          if (!mounted) return;
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                                builder: (_) => const LoginScreen()),
-                                (route) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: const Text(
-                          'Logout',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      builder: (_) => AlertDialog(
+        title: const Text('Help & Support'),
+        content: const Text('Hubungi kami di: support@fokusin.app'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Yakin ingin keluar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await StorageService.logout();
+              if (!mounted) return;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -349,6 +344,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   @override
   Widget build(BuildContext context) {
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+    final currentFrame = getFrameById(equippedFrameId);
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -357,89 +353,153 @@ class _ProfilScreenState extends State<ProfilScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              // ============ HEADER ============
+              // HEADER
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [AppTheme.primaryTeal, AppTheme.darkTeal],
-                  ),
+                      colors: [AppTheme.primaryTeal, AppTheme.darkTeal]),
                   borderRadius: BorderRadius.circular(25),
                 ),
                 child: Column(
                   children: [
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          initial,
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.darkTeal,
-                          ),
-                        ),
-                      ),
+                    FramedAvatar(
+                      initial: initial,
+                      frame: currentFrame,
+                      size: 100,
                     ),
                     const SizedBox(height: 15),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 21,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text(name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold)),
                     const SizedBox(height: 5),
                     Text(email,
                         style: const TextStyle(color: Colors.white70)),
                     const SizedBox(height: 18),
-                    OutlinedButton.icon(
-                      onPressed: editProfile,
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Edit Profile'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: editProfile,
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('Edit'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white),
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: _openShop,
+                          icon: const Icon(Icons.storefront, size: 16),
+                          label: const Text('Shop'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppTheme.darkTeal,
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 25),
 
-              // ============ STATS ============
+              // STATS
               Row(
                 children: [
                   Expanded(
-                    child: _ProfileStat(
-                        value: '$pomodoros',
-                        label: 'Pomodoros',
-                        icon: Icons.timer),
-                  ),
+                      child: _StatBox(
+                          value: '$pomodoros',
+                          label: 'Pomodoros',
+                          icon: Icons.timer)),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _ProfileStat(
-                        value: '$streak',
-                        label: 'Day Streak',
-                        icon: Icons.local_fire_department),
-                  ),
+                      child: _StatBox(
+                          value: '$streak',
+                          label: 'Streak',
+                          icon: Icons.local_fire_department)),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _ProfileStat(
-                        value: '$xp', label: 'XP', icon: Icons.star),
-                  ),
+                      child: _StatBox(
+                          value: '$xp', label: 'XP', icon: Icons.star)),
                 ],
               ),
               const SizedBox(height: 25),
 
-              // ============ SETTINGS ============
+              // 👇 KARTU STREAK PUTUS
+              if (streakBroken && lastStreakValue > 0) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.local_fire_department,
+                              color: Colors.orange, size: 30),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Streak $lastStreakValue Hari Terputus!',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.txt)),
+                                const SizedBox(height: 4),
+                                Text('Pulihkan pakai $restoreStreakCost XP',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppTheme.txtGrey)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 40,
+                        child: ElevatedButton.icon(
+                          onPressed: _restoreStreak,
+                          icon: const Icon(Icons.restore, size: 18),
+                          label: const Text('Pulihkan Streak',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 40),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 25),
+              ],
+
+              // SETTINGS
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text('Settings',
@@ -450,43 +510,36 @@ class _ProfilScreenState extends State<ProfilScreen> {
               ),
               const SizedBox(height: 12),
 
-              _SettingSwitch(
+              _SwitchTile(
                 icon: darkMode ? Icons.dark_mode : Icons.light_mode,
                 title: 'Dark Mode',
-                subtitle: darkMode ? 'Aktif' : 'Nonaktif',
                 value: darkMode,
                 onChanged: _toggleDarkMode,
               ),
-              _SettingSwitch(
+              _SwitchTile(
                 icon: Icons.lock_outline,
                 title: 'Kunci Aplikasi',
-                subtitle: 'Tidak bisa keluar saat timer berjalan',
                 value: lockApp,
                 onChanged: _toggleLockApp,
               ),
-              _SettingTile(
-                icon: Icons.notifications_none,
-                title: 'Notifications',
-                onTap: () {},
+              _TileButton(
+                icon: Icons.bar_chart_rounded,
+                title: 'Statistik Mingguan',
+                onTap: _openStatistics,
               ),
-              _SettingTile(
-                icon: Icons.volume_up_outlined,
-                title: 'Focus Sounds',
-                onTap: () {},
-              ),
-              _SettingTile(
+              _TileButton(
                 icon: Icons.help_outline,
                 title: 'Help & Support',
-                onTap: () {},
+                onTap: _showHelp,
               ),
               const SizedBox(height: 15),
 
-              // ============ LOGOUT BUTTON ============
+              // LOGOUT
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: OutlinedButton.icon(
-                  onPressed: logout,
+                  onPressed: _showLogout,
                   icon: const Icon(Icons.logout),
                   label: const Text('Logout'),
                   style: OutlinedButton.styleFrom(
@@ -505,28 +558,20 @@ class _ProfilScreenState extends State<ProfilScreen> {
   }
 }
 
-// ============================================================
-// PROFILE STAT
-// ============================================================
-class _ProfileStat extends StatelessWidget {
+// WIDGET STAT BOX
+class _StatBox extends StatelessWidget {
   final String value;
   final String label;
   final IconData icon;
-
-  const _ProfileStat({
-    required this.value,
-    required this.label,
-    required this.icon,
-  });
+  const _StatBox(
+      {required this.value, required this.label, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 15),
       decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(17),
-      ),
+          color: AppTheme.card, borderRadius: BorderRadius.circular(17)),
       child: Column(
         children: [
           Icon(icon, color: AppTheme.primaryTeal),
@@ -545,36 +590,27 @@ class _ProfileStat extends StatelessWidget {
   }
 }
 
-// ============================================================
-// SETTING TILE
-// ============================================================
-class _SettingTile extends StatelessWidget {
+// WIDGET TILE BUTTON
+class _TileButton extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onTap;
-
-  const _SettingTile({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-  });
+  const _TileButton(
+      {required this.icon, required this.title, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(17),
-      ),
+          color: AppTheme.card, borderRadius: BorderRadius.circular(17)),
       child: ListTile(
         onTap: onTap,
         leading: Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: AppTheme.lightTeal,
-            borderRadius: BorderRadius.circular(11),
-          ),
+              color: AppTheme.lightTeal,
+              borderRadius: BorderRadius.circular(11)),
           child: Icon(icon, color: AppTheme.darkTeal),
         ),
         title: Text(title,
@@ -586,23 +622,17 @@ class _SettingTile extends StatelessWidget {
   }
 }
 
-// ============================================================
-// SETTING SWITCH (CUSTOM)
-// ============================================================
-class _SettingSwitch extends StatelessWidget {
+// WIDGET SWITCH TILE
+class _SwitchTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
-
-  const _SettingSwitch({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
+  const _SwitchTile(
+      {required this.icon,
+        required this.title,
+        required this.value,
+        required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -610,85 +640,25 @@ class _SettingSwitch extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(17),
-      ),
+          color: AppTheme.card, borderRadius: BorderRadius.circular(17)),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: AppTheme.lightTeal,
-              borderRadius: BorderRadius.circular(11),
-            ),
+                color: AppTheme.lightTeal,
+                borderRadius: BorderRadius.circular(11)),
             child: Icon(icon, color: AppTheme.darkTeal),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: AppTheme.txt)),
-                const SizedBox(height: 3),
-                Text(subtitle,
-                    style: TextStyle(
-                        fontSize: 12, color: AppTheme.txtGrey)),
-              ],
-            ),
+            child: Text(title,
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: AppTheme.txt)),
           ),
-          const SizedBox(width: 10),
-
-          // CUSTOM SWITCH
-          GestureDetector(
-            onTap: () => onChanged(!value),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 52,
-              height: 30,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: value
-                    ? AppTheme.primaryTeal
-                    : (AppTheme.isDarkMode
-                    ? const Color(0xFF3A4A48)
-                    : const Color(0xFFCFD8DC)),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(
-                  color: value
-                      ? Colors.transparent
-                      : (AppTheme.isDarkMode
-                      ? const Color(0xFF546E7A)
-                      : const Color(0xFFB0BEC5)),
-                  width: 1.5,
-                ),
-              ),
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-                alignment:
-                value ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          Switch(value: value, onChanged: onChanged),
         ],
       ),
     );

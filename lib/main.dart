@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
+import 'services/timer_service.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
@@ -41,6 +42,8 @@ class _FokusinAppState extends State<FokusinApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Fokusin',
+      // 👇 INI KUNCINYA: pasang navigatorKey dari service
+      navigatorKey: TimerService.instance.navigatorKey,
       theme: dark ? AppTheme.darkTheme : AppTheme.lightTheme,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,

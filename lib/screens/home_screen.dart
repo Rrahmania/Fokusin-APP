@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../widgets/music_card.dart';
+import '../widgets/bottom_nav.dart';
 import 'timer_screen.dart';
 import 'challenge_screen.dart';
 
@@ -16,6 +17,16 @@ class _HomeScreenState extends State<HomeScreen> {
   String userName = 'User';
   String userInitial = 'U';
 
+  int pomodoros = 0;
+  int streak = 0;
+  int xp = 0;
+
+  // 👇 Status streak
+  bool streakBroken = false;
+  int lastStreakValue = 0;
+
+  final int restoreStreakCost = 50;
+
   @override
   void initState() {
     super.initState();
@@ -23,12 +34,85 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUser() async {
-    final name = await StorageService.getCurrentUserName();
+    try {
+      // 👇 Cek status streak dulu sebelum load data
+      await StorageService.checkStreakStatus();
+
+      final name = await StorageService.getCurrentUserName();
+      final total = await StorageService.loadTotalPomodoro();
+      final s = await StorageService.loadStreak();
+      final userXp = await StorageService.loadXp();
+      final broken = await StorageService.isStreakBroken();
+      final lastVal = await StorageService.loadLastStreakValue();
+
+      if (!mounted) return;
+      setState(() {
+        userName = name;
+        userInitial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+        pomodoros = total;
+        streak = s;
+        xp = userXp;
+        streakBroken = broken;
+        lastStreakValue = lastVal;
+      });
+    } catch (err) {
+      print("ERROR HOME: $err");
+    }
+  }
+
+  void _goToProfile() {
+    BottomNav.navNotifier.value = 4;
+  }
+
+  Future<void> _restoreStreak() async {
+    if (xp < restoreStreakCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('XP kamu tidak cukup! Butuh $restoreStreakCost XP.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pulihkan Streak?'),
+        content: Text(
+            'Gunakan $restoreStreakCost XP untuk memulihkan streak $lastStreakValue hari kamu?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryTeal,
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            child: const Text('Pulihkan',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await StorageService.saveXp(xp - restoreStreakCost);
+    await StorageService.restoreStreak();
+
     if (!mounted) return;
-    setState(() {
-      userName = name;
-      userInitial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-    });
+    _loadUser();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Streak $lastStreakValue hari berhasil dipulihkan! 🔥'),
+        backgroundColor: AppTheme.darkTeal,
+      ),
+    );
   }
 
   String get greeting {
@@ -52,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ============ HEADER ============
+                  // HEADER
                   Row(
                     children: [
                       Expanded(
@@ -74,20 +158,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.primaryTeal,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            userInitial,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold),
+                      GestureDetector(
+                        onTap: _goToProfile,
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                            color: AppTheme.primaryTeal,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              userInitial,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                       ),
@@ -95,7 +182,72 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 25),
 
-                  // ============ MAIN FOCUS CARD ============
+                  // 👇 BANNER STREAK PUTUS
+                  if (streakBroken && lastStreakValue > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border:
+                        Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.local_fire_department,
+                                  color: Colors.orange, size: 30),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Streak $lastStreakValue Hari Terputus!',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.txt)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                        'Pulihkan pakai $restoreStreakCost XP',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppTheme.txtGrey)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 40,
+                            child: ElevatedButton.icon(
+                              onPressed: _restoreStreak,
+                              icon: const Icon(Icons.restore, size: 18),
+                              label: const Text('Pulihkan Streak',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 40),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // MAIN FOCUS CARD
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(22),
@@ -152,11 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 50,
                           child: ElevatedButton.icon(
                             onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const TimerScreen()),
-                              );
+                              BottomNav.navNotifier.value = 1;
                             },
                             icon: const Icon(Icons.play_arrow),
                             label: const Text('Start Focus',
@@ -165,6 +313,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: AppTheme.darkTeal,
+                              minimumSize: const Size(0, 50),
+                              padding:
+                              const EdgeInsets.symmetric(horizontal: 16),
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(15)),
@@ -176,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 25),
 
-                  // ============ STATS ============
+                  // STATS
                   Text('Your Progress',
                       style: TextStyle(
                           fontSize: 19,
@@ -188,25 +339,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                           child: _StatCard(
                               icon: Icons.timer,
-                              value: '8',
+                              value: '$pomodoros',
                               title: 'Pomodoros')),
                       const SizedBox(width: 12),
                       Expanded(
                           child: _StatCard(
                               icon: Icons.local_fire_department,
-                              value: '5',
+                              value: '$streak',
                               title: 'Day Streak')),
                       const SizedBox(width: 12),
                       Expanded(
                           child: _StatCard(
                               icon: Icons.star,
-                              value: '250',
+                              value: '$xp',
                               title: 'XP')),
                     ],
                   ),
                   const SizedBox(height: 25),
 
-                  // ============ TODAY'S FOCUS ============
+                  // TODAY'S FOCUS
                   Row(
                     children: [
                       Expanded(
@@ -218,62 +369,61 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const TimerScreen()),
-                          );
+                          BottomNav.navNotifier.value = 1;
                         },
                         child: const Text('Start'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppTheme.card,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.lightTeal),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: AppTheme.lightTeal,
-                            borderRadius: BorderRadius.circular(14),
+                  GestureDetector(
+                    onTap: () => BottomNav.navNotifier.value = 1,
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: AppTheme.card,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppTheme.lightTeal),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: AppTheme.lightTeal,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(Icons.menu_book,
+                                color: AppTheme.darkTeal),
                           ),
-                          child: const Icon(Icons.menu_book,
-                              color: AppTheme.darkTeal),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Study Session',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: AppTheme.txt)),
-                              const SizedBox(height: 5),
-                              Text('25 minutes • 1 Pomodoro',
-                                  style: TextStyle(
-                                      color: AppTheme.txtGrey,
-                                      fontSize: 13)),
-                            ],
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Study Session',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: AppTheme.txt)),
+                                const SizedBox(height: 5),
+                                Text('25 minutes • 1 Pomodoro',
+                                    style: TextStyle(
+                                        color: AppTheme.txtGrey,
+                                        fontSize: 13)),
+                              ],
+                            ),
                           ),
-                        ),
-                        Icon(Icons.arrow_forward_ios,
-                            size: 16, color: AppTheme.txtGrey),
-                      ],
+                          Icon(Icons.arrow_forward_ios,
+                              size: 16, color: AppTheme.txtGrey),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 25),
 
-                  // ============ AI RECOMMENDATION ============
+                  // AI RECOMMENDATION
                   Text('AI Recommendation',
                       style: TextStyle(
                           fontSize: 19,
@@ -325,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 25),
 
-                  // ============ MUSIC ============
+                  // MUSIC
                   Text('Relax & Focus',
                       style: TextStyle(
                           fontSize: 19,
@@ -335,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const MusicCard(),
                   const SizedBox(height: 25),
 
-                  // ============ TODAY'S CHALLENGE ============
+                  // TODAY'S CHALLENGE
                   Row(
                     children: [
                       Expanded(
@@ -347,11 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const ChallengeScreen()),
-                          );
+                          BottomNav.navNotifier.value = 3;
                         },
                         child: const Text('See All'),
                       ),
@@ -416,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 25),
 
-                  // ============ TIPS ============
+                  // TIPS
                   Text('Tips & Tricks',
                       style: TextStyle(
                           fontSize: 19,
@@ -457,9 +603,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ============================================================
-// STAT CARD
-// ============================================================
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;
