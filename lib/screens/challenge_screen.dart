@@ -52,86 +52,50 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refresh,
-          color: AppTheme.primaryTeal,
+          color: AppTheme.primary,
           backgroundColor: AppTheme.card,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Challenges',
-                        style: TextStyle(
-                          fontSize: 27,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryTeal,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _refresh,
-                      icon: Icon(Icons.refresh, color: AppTheme.txt),
-                    ),
+                    Expanded(child: Text('Challenges', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppTheme.txt))),
+                    IconButton(onPressed: _refresh, icon: Icon(Icons.refresh, color: AppTheme.txt)),
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  'Progress otomatis dari aktivitas fokusmu.',
-                  style: TextStyle(color: AppTheme.txtGrey),
-                ),
-                const SizedBox(height: 25),
+                Text('Progress otomatis dari aktivitas fokusmu.', style: TextStyle(color: AppTheme.txtGrey)),
+                const SizedBox(height: 24),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppTheme.primaryTeal, AppTheme.darkTeal],
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(28)),
                   child: Row(
                     children: [
                       Container(
                         width: 55,
                         height: 55,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: const Icon(Icons.star,
-                            color: Colors.white, size: 30),
+                        decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(15)),
+                        child: const Icon(Icons.star, color: Colors.white, size: 30),
                       ),
-                      const SizedBox(width: 15),
+                      const SizedBox(width: 16),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Your XP',
-                              style: TextStyle(color: Colors.white70)),
-                          const SizedBox(height: 3),
-                          Text(
-                            '$userXp XP',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          const Text('Your XP', style: TextStyle(color: Colors.white70)),
+                          const SizedBox(height: 4),
+                          Text('$userXp XP', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 25),
-                Text('Available Challenges',
-                    style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.txt)),
-                const SizedBox(height: 12),
+                const SizedBox(height: 32),
+                Text('Available Challenges', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+                const SizedBox(height: 16),
                 if (loading)
                   const Center(child: CircularProgressIndicator())
                 else
@@ -140,20 +104,15 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                     final current = progress?['current'] ?? 0;
                     final target = progress?['target'] ?? 1;
                     final ratio = (current / target).clamp(0.0, 1.0);
-                    final completed =
-                    completedIds.contains(challenge.id);
+                    final completed = completedIds.contains(challenge.id);
 
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      padding: const EdgeInsets.all(17),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: AppTheme.card,
                         borderRadius: BorderRadius.circular(20),
-                        border: completed
-                            ? Border.all(
-                            color: Colors.green.withOpacity(0.4),
-                            width: 1.5)
-                            : null,
+                        border: Border.all(color: completed ? Colors.green.withValues(alpha: 0.5) : AppTheme.border, width: 1.5),
                       ),
                       child: Column(
                         children: [
@@ -163,56 +122,26 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: completed
-                                      ? Colors.green.withOpacity(0.15)
-                                      : AppTheme.lightTeal,
+                                  color: completed ? Colors.green.withValues(alpha: 0.15) : AppTheme.lightTeal,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: Icon(
-                                  completed
-                                      ? Icons.check_circle
-                                      : Icons.emoji_events,
-                                  color: completed
-                                      ? Colors.green
-                                      : AppTheme.darkTeal,
-                                ),
+                                child: Icon(completed ? Icons.check_circle : Icons.emoji_events, color: completed ? Colors.green : AppTheme.primary), // Hapus const
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      challenge.title,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                        color: AppTheme.txt,
-                                      ),
-                                    ),
+                                    Text(challenge.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.txt)),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      challenge.description,
-                                      style: TextStyle(
-                                        color: AppTheme.txtGrey,
-                                        fontSize: 12,
-                                      ),
-                                    ),
+                                    Text(challenge.description, style: TextStyle(color: AppTheme.txtGrey, fontSize: 12)),
                                   ],
                                 ),
                               ),
-                              Text(
-                                '+${challenge.reward} XP',
-                                style: const TextStyle(
-                                  color: AppTheme.primaryTeal,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
+                              Text('+${challenge.reward} XP', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 13)), // Hapus const
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(
@@ -221,54 +150,30 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                                   child: LinearProgressIndicator(
                                     value: ratio,
                                     minHeight: 8,
-                                    backgroundColor: AppTheme.lightTeal,
-                                    color: completed
-                                        ? Colors.green
-                                        : AppTheme.primaryTeal,
+                                    backgroundColor: AppTheme.border,
+                                    color: completed ? Colors.green : AppTheme.primary,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Text(
-                                '$current/$target',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.txt,
-                                ),
-                              ),
+                              const SizedBox(width: 12),
+                              Text('$current/$target', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.txt)),
                             ],
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           if (completed)
                             const Row(
                               children: [
-                                Icon(Icons.verified,
-                                    color: Colors.green, size: 18),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Selesai otomatis oleh sistem ✓',
-                                  style: TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                                Icon(Icons.verified, color: Colors.green, size: 18),
+                                SizedBox(width: 8),
+                                Text('Selesai otomatis oleh sistem ✓', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
                               ],
                             )
                           else
                             Row(
                               children: [
-                                Icon(Icons.lock_clock,
-                                    size: 16, color: AppTheme.txtGrey),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Selesaikan aktivitas untuk membuka',
-                                  style: TextStyle(
-                                    color: AppTheme.txtGrey,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                                Icon(Icons.lock_clock, size: 16, color: AppTheme.txtGrey), // Hapus const
+                                const SizedBox(width: 8),
+                                Text('Selesaikan aktivitas untuk membuka', style: TextStyle(color: AppTheme.txtGrey, fontSize: 12)),
                               ],
                             ),
                         ],

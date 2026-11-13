@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 import 'services/timer_service.dart';
+import 'services/music_service.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('isDarkMode') ?? false;
+  final colorIndex = prefs.getInt('theme_color_index') ?? 0;
+
   AppTheme.setDarkMode(isDark);
+  AppTheme.setThemeColorIndex(colorIndex);
+
+  MusicService.instance.init();
+
   runApp(const FokusinApp());
 }
 
@@ -24,11 +31,13 @@ class _FokusinAppState extends State<FokusinApp> {
   void initState() {
     super.initState();
     AppTheme.themeNotifier.addListener(_refresh);
+    AppTheme.colorNotifier.addListener(_refresh);
   }
 
   @override
   void dispose() {
     AppTheme.themeNotifier.removeListener(_refresh);
+    AppTheme.colorNotifier.removeListener(_refresh);
     super.dispose();
   }
 
@@ -42,7 +51,6 @@ class _FokusinAppState extends State<FokusinApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Fokusin',
-      // 👇 INI KUNCINYA: pasang navigatorKey dari service
       navigatorKey: TimerService.instance.navigatorKey,
       theme: dark ? AppTheme.darkTheme : AppTheme.lightTheme,
       themeAnimationDuration: Duration.zero,

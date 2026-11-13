@@ -1,124 +1,89 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../models/music_model.dart';
-import '../services/storage_service.dart';
+import '../services/music_service.dart';
 import '../screens/music_player_screen.dart';
 
-class MusicCard extends StatefulWidget {
+class MusicCard extends StatelessWidget {
   const MusicCard({super.key});
 
   @override
-  State<MusicCard> createState() => _MusicCardState();
-}
-
-class _MusicCardState extends State<MusicCard> {
-  MusicTrack current = defaultPlaylist.first;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-    AppTheme.themeNotifier.addListener(_onThemeChanged);
-  }
-
-  @override
-  void dispose() {
-    AppTheme.themeNotifier.removeListener(_onThemeChanged);
-    super.dispose();
-  }
-
-  void _onThemeChanged() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _load() async {
-    final saved = await StorageService.loadSelectedMusic();
-    final track = defaultPlaylist.firstWhere(
-          (t) => t.title == saved,
-      orElse: () => defaultPlaylist.first,
-    );
-    if (!mounted) return;
-    setState(() => current = track);
-  }
-
-  void _openPlayer() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MusicPlayerScreen(initialTrack: current),
-      ),
-    );
-    _load();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _openPlayer,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          // 👇 INI KUNCINYA: pakai AppTheme.card biar ikut tema
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    return ListenableBuilder(
+      listenable: MusicService.instance,
+      builder: (context, _) {
+        final current = MusicService.instance.current;
+        final isPlaying = MusicService.instance.isPlaying;
+
+        return GestureDetector(
+          // Jika area selain tombol diketuk, buka layar musik
+          onTap: () {
+            Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MusicPlayerScreen())
+            );
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.border, width: 1.5),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: current.color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(current.icon, color: current.color, size: 26),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    current.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      // 👇 pakai AppTheme.txt biar dinamis
-                      color: AppTheme.txt,
-                    ),
+            child: Row(
+              children: [
+                // Icon Album
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                      color: current.color.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(15)
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${current.artist} • Tap to open player',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      // 👇 pakai AppTheme.txtGrey
-                      color: AppTheme.txtGrey,
-                      fontSize: 12,
-                    ),
+                  child: Icon(current.icon, color: current.color, size: 26),
+                ),
+                const SizedBox(width: 16),
+
+                // Teks Judul & Status
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          current.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.txt)
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                          isPlaying ? 'Sedang diputar • Tap to open' : '${current.artist} • Tap to play',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: isPlaying ? AppTheme.primary : AppTheme.txtGrey, fontSize: 12)
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                // TOMBOL PLAY / PAUSE BARU
+                IconButton(
+                  onPressed: () {
+                    // Memanggil fungsi toggle dari service
+                    MusicService.instance.togglePlay();
+                  },
+                  icon: Icon(
+                    isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
+                    color: AppTheme.primary,
+                    size: 40,
+                  ),
+                  tooltip: isPlaying ? 'Pause' : 'Play',
+                ),
+              ],
             ),
-            const Icon(
-              Icons.play_circle_fill,
-              color: AppTheme.primaryTeal,
-              size: 38,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

@@ -3,8 +3,6 @@ import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../widgets/music_card.dart';
 import '../widgets/bottom_nav.dart';
-import 'timer_screen.dart';
-import 'challenge_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,16 +14,32 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String userName = 'User';
   String userInitial = 'U';
-
   int pomodoros = 0;
   int streak = 0;
   int xp = 0;
-
-  // 👇 Status streak
   bool streakBroken = false;
   int lastStreakValue = 0;
-
   final int restoreStreakCost = 50;
+
+  // State untuk AI Recommendation
+  int aiIndex = 0;
+  final List<Map<String, dynamic>> aiSuggestions = [
+    {
+      'title': 'Belajar Flutter UI',
+      'desc': 'Kamu sudah fokus dengan baik minggu ini. Coba pelajari animasi di Flutter selama 25 menit.',
+      'tag': 'Coding',
+    },
+    {
+      'title': 'Review Materi Kuliah',
+      'desc': 'Gunakan waktu fokus untuk mengulang materi yang belum dikuasai hari ini.',
+      'tag': 'Belajar',
+    },
+    {
+      'title': 'Kerjakan Project',
+      'desc': 'Lanjutkan project yang sedang kamu kerjakan. Selesaikan satu sub-task dulu.',
+      'tag': 'Bekerja',
+    },
+  ];
 
   @override
   void initState() {
@@ -35,9 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUser() async {
     try {
-      // 👇 Cek status streak dulu sebelum load data
       await StorageService.checkStreakStatus();
-
       final name = await StorageService.getCurrentUserName();
       final total = await StorageService.loadTotalPomodoro();
       final s = await StorageService.loadStreak();
@@ -56,21 +68,22 @@ class _HomeScreenState extends State<HomeScreen> {
         lastStreakValue = lastVal;
       });
     } catch (err) {
-      print("ERROR HOME: $err");
+      debugPrint("ERROR HOME: $err");
     }
   }
 
-  void _goToProfile() {
-    BottomNav.navNotifier.value = 4;
+  void _goToProfile() => BottomNav.navNotifier.value = 4;
+
+  void _nextAiSuggestion() {
+    setState(() {
+      aiIndex = (aiIndex + 1) % aiSuggestions.length;
+    });
   }
 
   Future<void> _restoreStreak() async {
     if (xp < restoreStreakCost) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('XP kamu tidak cukup! Butuh $restoreStreakCost XP.'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('XP kamu tidak cukup! Butuh $restoreStreakCost XP.'), backgroundColor: Colors.red),
       );
       return;
     }
@@ -79,22 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Pulihkan Streak?'),
-        content: Text(
-            'Gunakan $restoreStreakCost XP untuk memulihkan streak $lastStreakValue hari kamu?'),
+        content: Text('Gunakan $restoreStreakCost XP untuk memulihkan streak $lastStreakValue hari kamu?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryTeal,
-              minimumSize: const Size(0, 40),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-            ),
-            child: const Text('Pulihkan',
-                style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 16)),
+            child: const Text('Pulihkan', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -108,10 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _loadUser();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Streak $lastStreakValue hari berhasil dipulihkan! 🔥'),
-        backgroundColor: AppTheme.darkTeal,
-      ),
+      SnackBar(content: Text('Streak $lastStreakValue hari berhasil dipulihkan! 🔥'), backgroundColor: AppTheme.darkTeal),
     );
   }
 
@@ -125,469 +126,147 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppTheme.themeNotifier,
-      builder: (context, _, __) {
-        return Scaffold(
-          backgroundColor: AppTheme.bg,
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-              child: Column(
+    final currentAi = aiSuggestions[aiIndex];
+
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // HEADER
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // HEADER
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(greeting.toUpperCase(), style: TextStyle(fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.bold, color: AppTheme.txtGrey)),
+                      const SizedBox(height: 8),
+                      Text("Halo,\n$userName.", style: TextStyle(fontSize: 34, height: 1.1, fontWeight: FontWeight.w800, color: AppTheme.txt, letterSpacing: -1)),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: _goToProfile,
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle), // Hapus const
+                      child: Center(child: Text(userInitial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
+              // BANNER STREAK PUTUS
+              if (streakBroken && lastStreakValue > 0) ...[
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3), width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_fire_department, color: Colors.orange, size: 32),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(greeting,
-                                style: TextStyle(
-                                    fontSize: 14, color: AppTheme.txtGrey)),
-                            const SizedBox(height: 5),
-                            Text(
-                              userName,
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.txt,
-                              ),
+                            Text('Streak $lastStreakValue Hari Terputus!', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt)),
+                            Text('Pulihkan pakai $restoreStreakCost XP', style: TextStyle(fontSize: 12, color: AppTheme.txtGrey)),
+                          ],
+                        ),
+                      ),
+                      IconButton(onPressed: _restoreStreak, icon: const Icon(Icons.restore, color: Colors.orange)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // BENTO GRID
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: GestureDetector(
+                      onTap: () => BottomNav.navNotifier.value = 1,
+                      child: Container(
+                        height: 180,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(28)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Icon(Icons.play_circle_fill, color: Colors.white, size: 36),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Mulai\nFokus', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+                                const SizedBox(height: 8),
+                                Text('$pomodoros Sesi', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: _goToProfile,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.primaryTeal,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              userInitial,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 25),
-
-                  // 👇 BANNER STREAK PUTUS
-                  if (streakBroken && lastStreakValue > 0) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border:
-                        Border.all(color: Colors.orange.withOpacity(0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        Container(
+                          height: 82,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.border, width: 1.5)),
+                          child: Row(
                             children: [
-                              const Icon(Icons.local_fire_department,
-                                  color: Colors.orange, size: 30),
+                              const Icon(Icons.star, color: Colors.amber, size: 28),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Streak $lastStreakValue Hari Terputus!',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.txt)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                        'Pulihkan pakai $restoreStreakCost XP',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppTheme.txtGrey)),
+                                    Text('$xp', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.txt, height: 1)),
+                                    Text('XP', style: TextStyle(fontSize: 11, color: AppTheme.txtGrey)),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 40,
-                            child: ElevatedButton.icon(
-                              onPressed: _restoreStreak,
-                              icon: const Icon(Icons.restore, size: 18),
-                              label: const Text('Pulihkan Streak',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 40),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // MAIN FOCUS CARD
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppTheme.primaryTeal, AppTheme.darkTeal],
-                      ),
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primaryTeal.withOpacity(0.20),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white24,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(Icons.timer,
-                                  color: Colors.white, size: 28),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text('Ready to focus?',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        const Text(
-                          'Start a Pomodoro session and get things done.',
-                          style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              height: 1.5),
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              BottomNav.navNotifier.value = 1;
-                            },
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Start Focus',
-                                style:
-                                TextStyle(fontWeight: FontWeight.bold)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppTheme.darkTeal,
-                              minimumSize: const Size(0, 50),
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // STATS
-                  Text('Your Progress',
-                      style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.txt)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                          child: _StatCard(
-                              icon: Icons.timer,
-                              value: '$pomodoros',
-                              title: 'Pomodoros')),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: _StatCard(
-                              icon: Icons.local_fire_department,
-                              value: '$streak',
-                              title: 'Day Streak')),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: _StatCard(
-                              icon: Icons.star,
-                              value: '$xp',
-                              title: 'XP')),
-                    ],
-                  ),
-                  const SizedBox(height: 25),
-
-                  // TODAY'S FOCUS
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text("Today's Focus",
-                            style: TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.txt)),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          BottomNav.navNotifier.value = 1;
-                        },
-                        child: const Text('Start'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () => BottomNav.navNotifier.value = 1,
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: AppTheme.card,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.lightTeal),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: AppTheme.lightTeal,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(Icons.menu_book,
-                                color: AppTheme.darkTeal),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Study Session',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: AppTheme.txt)),
-                                const SizedBox(height: 5),
-                                Text('25 minutes • 1 Pomodoro',
-                                    style: TextStyle(
-                                        color: AppTheme.txtGrey,
-                                        fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.arrow_forward_ios,
-                              size: 16, color: AppTheme.txtGrey),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // AI RECOMMENDATION
-                  Text('AI Recommendation',
-                      style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.txt)),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppTheme.isDarkMode
-                          ? AppTheme.primaryTeal.withOpacity(0.15)
-                          : AppTheme.lightTeal,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                        const SizedBox(height: 16),
                         Container(
-                          padding: const EdgeInsets.all(11),
-                          decoration: BoxDecoration(
-                            color: AppTheme.card,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(Icons.auto_awesome,
-                              color: AppTheme.primaryTeal),
-                        ),
-                        const SizedBox(width: 13),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          height: 82,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.border, width: 1.5)),
+                          child: Row(
                             children: [
-                              const Text('What should you learn today?',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.primaryTeal)),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Try learning Flutter UI for 25 minutes. You have been focusing well on programming lately.',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    height: 1.5,
-                                    color: AppTheme.txt),
+                              const Icon(Icons.local_fire_department, color: Colors.redAccent, size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('$streak', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.txt, height: 1)),
+                                    Text('Streak', style: TextStyle(fontSize: 11, color: AppTheme.txtGrey)),
+                                  ],
+                                ),
                               ),
                             ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // MUSIC
-                  Text('Relax & Focus',
-                      style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.txt)),
-                  const SizedBox(height: 12),
-                  const MusicCard(),
-                  const SizedBox(height: 25),
-
-                  // TODAY'S CHALLENGE
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text("Today's Challenge",
-                            style: TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.txt)),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          BottomNav.navNotifier.value = 3;
-                        },
-                        child: const Text('See All'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppTheme.card,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF4D6),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.emoji_events,
-                                  color: Colors.orange),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Complete 3 Pomodoros',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.txt)),
-                                  const SizedBox(height: 4),
-                                  Text('Reward: +50 XP',
-                                      style: TextStyle(
-                                          color: AppTheme.txtGrey,
-                                          fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            const Text('2/3',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryTeal)),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: const LinearProgressIndicator(
-                            value: 0.66,
-                            minHeight: 8,
-                            backgroundColor: AppTheme.lightTeal,
-                            color: AppTheme.primaryTeal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // TIPS
-                  Text('Tips & Tricks',
-                      style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.txt)),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppTheme.card,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.lightbulb_outline,
-                            color: Colors.amber, size: 28),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Letakkan HP dalam mode silent selama Pomodoro agar tidak mudah terdistraksi.',
-                            style: TextStyle(
-                                height: 1.5,
-                                fontSize: 13,
-                                color: AppTheme.txt),
                           ),
                         ),
                       ],
@@ -595,47 +274,109 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 32),
+
+              // AI RECOMMENDATION
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Saran Fokus AI", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+                  IconButton(
+                    onPressed: _nextAiSuggestion,
+                    icon: Icon(Icons.refresh, color: AppTheme.txtGrey, size: 20),
+                    tooltip: 'Ganti Saran',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => BottomNav.navNotifier.value = 1,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2), width: 1.5),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), shape: BoxShape.circle),
+                        child: Icon(Icons.auto_awesome, color: AppTheme.primary, size: 24), // Hapus const
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(8)),
+                                  child: Text(currentAi['tag'], style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
+                                const Spacer(),
+                                Icon(Icons.arrow_forward, size: 16, color: AppTheme.primary), // Hapus const
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(currentAi['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.txt)),
+                            const SizedBox(height: 6),
+                            Text(currentAi['desc'], style: TextStyle(fontSize: 13, height: 1.4, color: AppTheme.txtGrey)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // MUSIK
+              Text("Soundscape", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+              const SizedBox(height: 12),
+              const MusicCard(),
+
+              const SizedBox(height: 32),
+
+              // CHALLENGE
+              Text("Tantangan", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () => BottomNav.navNotifier.value = 3,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.border, width: 1.5)),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.15), shape: BoxShape.circle),
+                        child: Icon(Icons.emoji_events, color: AppTheme.accent), // Hapus const
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Selesaikan 3 Pomodoro', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt, fontSize: 14)),
+                            const SizedBox(height: 4),
+                            Text('Hadiah: +50 XP', style: TextStyle(color: AppTheme.txtGrey, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      Text('2/3', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 16)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        );
-      },
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String title;
-
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.title,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: AppTheme.primaryTeal, size: 25),
-          const SizedBox(height: 8),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.txt)),
-          const SizedBox(height: 3),
-          Text(title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, color: AppTheme.txtGrey)),
-        ],
+        ),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../services/timer_service.dart';
+import '../widgets/bottom_nav.dart';
+import 'music_player_screen.dart';
 
 class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key});
@@ -12,26 +14,15 @@ class TimerScreen extends StatefulWidget {
 }
 
 class _TimerScreenState extends State<TimerScreen> {
-  final ScrollController _scrollController = ScrollController();
   final TimerService _timer = TimerService.instance;
-
-  bool lockApp = false;
   List<Map<String, dynamic>> customPresets = [];
+  bool lockApp = false;
 
   final List<Map<String, dynamic>> activities = [
     {'name': 'Belajar', 'icon': Icons.menu_book_rounded},
     {'name': 'Coding', 'icon': Icons.code_rounded},
     {'name': 'Tugas', 'icon': Icons.assignment_rounded},
     {'name': 'Bekerja', 'icon': Icons.work_outline_rounded},
-    {'name': 'Membaca', 'icon': Icons.auto_stories_rounded},
-    {'name': 'Lainnya', 'icon': Icons.more_horiz_rounded},
-  ];
-
-  final List<Map<String, dynamic>> musicOptions = [
-    {'name': 'Lo-fi Focus', 'subtitle': 'Musik latar untuk fokus', 'icon': Icons.headphones_rounded},
-    {'name': 'Calm Piano', 'subtitle': 'Musik instrumental yang tenang', 'icon': Icons.piano_rounded},
-    {'name': 'Ambient', 'subtitle': 'Musik latar santai', 'icon': Icons.spa_rounded},
-    {'name': 'Tanpa Musik', 'subtitle': 'Fokus dalam keheningan', 'icon': Icons.volume_off_rounded},
   ];
 
   @override
@@ -45,18 +36,12 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void dispose() {
     _timer.removeListener(_onTimerChanged);
-    _scrollController.dispose();
     AppTheme.themeNotifier.removeListener(_onThemeChanged);
     super.dispose();
   }
 
-  void _onTimerChanged() {
-    if (mounted) setState(() {});
-  }
-
-  void _onThemeChanged() {
-    if (mounted) setState(() {});
-  }
+  void _onTimerChanged() => mounted ? setState(() {}) : null;
+  void _onThemeChanged() => mounted ? setState(() {}) : null;
 
   Future<void> _loadAll() async {
     final lock = await StorageService.loadLockApp();
@@ -68,80 +53,6 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
-  void _startPresetNow(int index) {
-    final p = customPresets[index];
-    final m = p['minutes'] as int;
-    final s = p['seconds'] as int;
-    final savedLabel = p['label'] as String? ?? '';
-    final activityFromPreset =
-    savedLabel.contains(' • ') ? savedLabel.split(' • ').first : null;
-
-    _timer.selectCustomPreset(
-      minutes: m,
-      seconds: s,
-      index: index,
-      activity: activityFromPreset,
-    );
-    _timer.start();
-
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  Future<void> _deleteCustomPreset(int index) async {
-    final p = customPresets[index];
-    final m = p['minutes'] as int;
-    final s = p['seconds'] as int;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hapus preset?'),
-        content: Text('Hapus "${_formatLabel(m, s)}" dari daftar?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await StorageService.deleteCustomPreset(m, s);
-    if (!mounted) return;
-    setState(() {
-      if (_timer.activeCustomIndex == index) {
-        _timer.activeCustomIndex = -1;
-      } else if (_timer.activeCustomIndex > index) {
-        _timer.activeCustomIndex--;
-      }
-      customPresets.removeAt(index);
-    });
-  }
-
-  String _formatLabel(int minutes, int seconds) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h > 0) {
-      if (m == 0 && seconds == 0) return '$h jam';
-      if (seconds == 0) return '$h jam $m mnt';
-      return '$h jam $m mnt $seconds dtk';
-    }
-    if (seconds > 0) return '$m mnt $seconds dtk';
-    return '$m mnt';
-  }
-
   Future<void> _openCustomTimeDialog() async {
     int tempHours = _timer.selectedMinutes ~/ 60;
     int tempMinutes = _timer.selectedMinutes % 60;
@@ -151,87 +62,46 @@ class _TimerScreenState extends State<TimerScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTheme.card,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (context) {
         return Container(
           height: 420,
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Column(
             children: [
-              Container(
-                width: 45,
-                height: 5,
-                decoration: BoxDecoration(
-                    color: AppTheme.txtGrey.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(10)),
-              ),
+              Container(width: 45, height: 5, decoration: BoxDecoration(color: AppTheme.txtGrey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(10))),
               const SizedBox(height: 15),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    Text('Atur Waktu',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.txt)),
+                    Text('Atur Waktu', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.txt)),
                     const Spacer(),
                     Container(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                          color: AppTheme.primaryTeal.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20)),
-                      child: const Text('Max 3 jam',
-                          style: TextStyle(
-                              color: AppTheme.primaryTeal,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
+                      child: Text('Max 3 jam', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 5),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Scroll untuk atur jam, menit & detik',
-                        style:
-                        TextStyle(fontSize: 12, color: AppTheme.txtGrey))),
               ),
               const SizedBox(height: 10),
               Expanded(
                 child: CupertinoTheme(
                   data: CupertinoThemeData(
-                    brightness: AppTheme.isDarkMode
-                        ? Brightness.dark
-                        : Brightness.light,
-                    textTheme: CupertinoTextThemeData(
-                        dateTimePickerTextStyle: TextStyle(
-                            color: AppTheme.txt,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600)),
+                    brightness: AppTheme.isDarkMode ? Brightness.dark : Brightness.light,
+                    textTheme: CupertinoTextThemeData(dateTimePickerTextStyle: TextStyle(color: AppTheme.txt, fontSize: 22, fontWeight: FontWeight.w600)),
                   ),
                   child: CupertinoTimerPicker(
                     mode: CupertinoTimerPickerMode.hms,
-                    initialTimerDuration: Duration(
-                        hours: tempHours,
-                        minutes: tempMinutes,
-                        seconds: tempSeconds),
+                    initialTimerDuration: Duration(hours: tempHours, minutes: tempMinutes, seconds: tempSeconds),
                     minuteInterval: 1,
                     secondInterval: 1,
                     alignment: Alignment.center,
                     backgroundColor: Colors.transparent,
                     onTimerDurationChanged: (Duration d) {
                       int totalMin = d.inHours * 60 + d.inMinutes % 60;
-                      if (totalMin > 180) {
-                        tempHours = 3;
-                        tempMinutes = 0;
-                        tempSeconds = 0;
-                        return;
-                      }
+                      if (totalMin > 180) return;
                       tempHours = d.inHours;
                       tempMinutes = d.inMinutes % 60;
                       tempSeconds = d.inSeconds % 60;
@@ -248,13 +118,7 @@ class _TimerScreenState extends State<TimerScreen> {
                         height: 50,
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context, false),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.txt,
-                            side: BorderSide(
-                                color: AppTheme.txtGrey.withOpacity(0.4)),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                          ),
+                          style: OutlinedButton.styleFrom(foregroundColor: AppTheme.txt, side: BorderSide(color: AppTheme.border, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                           child: const Text('Batal'),
                         ),
                       ),
@@ -265,18 +129,8 @@ class _TimerScreenState extends State<TimerScreen> {
                         height: 50,
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryTeal,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(0, 50),
-                            padding:
-                            const EdgeInsets.symmetric(horizontal: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                          ),
-                          child: const Text('Simpan',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                          child: const Text('Simpan'),
                         ),
                       ),
                     ),
@@ -290,639 +144,214 @@ class _TimerScreenState extends State<TimerScreen> {
     );
 
     if (result == true) {
-      final totalSeconds =
-          tempHours * 3600 + tempMinutes * 60 + tempSeconds;
-      if (totalSeconds < 1) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Minimal 1 detik'),
-            backgroundColor: AppTheme.darkTeal));
-        return;
-      }
+      final totalSeconds = tempHours * 3600 + tempMinutes * 60 + tempSeconds;
+      if (totalSeconds < 1) return;
 
       final totalMinutes = tempHours * 60 + tempMinutes;
-      await StorageService.saveCustomPreset(
-        minutes: totalMinutes,
-        seconds: tempSeconds,
-        label:
-        '${_timer.selectedActivity} • ${_formatLabel(totalMinutes, tempSeconds)}',
-      );
+      String formatLabel(int m, int s) => '${m ~/ 60 > 0 ? "${m ~/ 60}j " : ""}${m % 60}m ${s}d';
 
+      await StorageService.saveCustomPreset(minutes: totalMinutes, seconds: tempSeconds, label: '${_timer.selectedActivity} • ${formatLabel(totalMinutes, tempSeconds)}');
       final presets = await StorageService.loadCustomPresets();
-      int newIndex = presets.indexWhere((p) =>
-      p['minutes'] == totalMinutes && p['seconds'] == tempSeconds);
+      int newIndex = presets.indexWhere((p) => p['minutes'] == totalMinutes && p['seconds'] == tempSeconds);
 
       _timer.pause();
       if (!mounted) return;
-      setState(() {
-        customPresets = presets;
-      });
-      _timer.selectCustomPreset(
-        minutes: totalMinutes,
-        seconds: tempSeconds,
-        index: newIndex,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Preset disimpan: ${_timer.selectedActivity} • ${_formatLabel(totalMinutes, tempSeconds)} ✓'),
-          backgroundColor: AppTheme.darkTeal));
+      setState(() => customPresets = presets);
+      _timer.selectCustomPreset(minutes: totalMinutes, seconds: tempSeconds, index: newIndex);
     }
   }
 
-  Future<void> _confirmEndSession() async {
-    final shouldEnd = await showDialog<bool>(
+  void _openSettings() {
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        icon: const Icon(Icons.favorite_rounded,
-            color: AppTheme.primaryTeal, size: 34),
-        title: const Text('Yakin ingin menyerah?'),
-        content: Text(
-            'Sesi ${_timer.selectedActivity} masih berjalan. Kamu sudah meluangkan waktu untuk fokus—mau lanjut sedikit lagi?',
-            textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.primaryTeal,
-                side: const BorderSide(color: AppTheme.primaryTeal),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13)),
-                padding: const EdgeInsets.symmetric(vertical: 13),
+      isScrollControlled: true,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(child: Container(width: 45, height: 5, decoration: BoxDecoration(color: AppTheme.txtGrey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(10)))),
+                        const SizedBox(height: 20),
+                        Text('Pengaturan & Preset', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Icon(Icons.lock_outline, color: AppTheme.primary),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Kunci Aplikasi saat Timer Jalan', style: TextStyle(color: AppTheme.txt))),
+                            Switch(
+                              value: lockApp,
+                              onChanged: (val) async {
+                                setModalState(() => lockApp = val);
+                                setState(() => lockApp = val);
+                                await StorageService.saveLockApp(val);
+                              },
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 32),
+                        if (customPresets.isEmpty)
+                          Text('Belum ada preset tersimpan.', style: TextStyle(color: AppTheme.txtGrey))
+                        else
+                          ...customPresets.asMap().entries.map((entry) {
+                            final i = entry.key;
+                            final p = entry.value;
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.bookmark, color: AppTheme.primary),
+                              title: Text(p['label'] ?? 'Preset', style: TextStyle(color: AppTheme.txt)),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  await StorageService.deleteCustomPreset(p['minutes'] as int, p['seconds'] as int);
+                                  final updatedPresets = await StorageService.loadCustomPresets();
+                                  setModalState(() => customPresets = updatedPresets);
+                                  setState(() => customPresets = updatedPresets);
+                                },
+                              ),
+                              onTap: () {
+                                Navigator.pop(bottomSheetContext);
+                                _timer.selectCustomPreset(minutes: p['minutes'] as int, seconds: p['seconds'] as int, index: i);
+                              },
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              child: const Text('Tidak, lanjut fokus 💪'),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-              child: const Text('Ya, akhiri sesi'),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
+  }
 
-    if (shouldEnd != true || !mounted) return;
-    _timer.reset();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Sesi fokus diakhiri. Coba lagi kapan saja!')));
+  void _openMusic() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const MusicPlayerScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final circleSize = (screenWidth * 0.65).clamp(200.0, 280.0);
     final isRunning = _timer.isRunning;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final circleSize = (screenWidth * 0.75).clamp(240.0, 320.0);
 
-    return WillPopScope(
-      onWillPop: () async {
-        if (isRunning && lockApp) {
-          await showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Timer Sedang Berjalan ⏱️'),
-              content: const Text(
-                  'Kamu tidak bisa keluar dari halaman ini selama timer berjalan (mode Kunci Aplikasi aktif). Hentikan timer dulu.'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('OK')),
-              ],
-            ),
-          );
-          return false;
-        }
-        return true;
-      },
-      child: Scaffold(
-        backgroundColor: AppTheme.bg,
-        appBar: AppBar(
-          title: const Text('Pomodoro Timer'),
-          centerTitle: true,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: AppTheme.primaryTeal,
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.keyboard_arrow_down, size: 32, color: AppTheme.txt),
+          onPressed: () => BottomNav.navNotifier.value = 0,
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(20),
-            child: Column(
+        actions: [
+          IconButton(icon: Icon(Icons.music_note, color: AppTheme.primary), onPressed: _openMusic),
+          IconButton(icon: Icon(Icons.more_horiz, color: AppTheme.txt), onPressed: _openSettings),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const Spacer(flex: 1),
+            Stack(
+              alignment: Alignment.center,
               children: [
-                const SizedBox(height: 5),
-                const Text('Stay Focused',
-                    style: TextStyle(
-                        fontSize: 25,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryTeal)),
-                const SizedBox(height: 8),
-                Text('Focus on your task and avoid distractions.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppTheme.txtGrey)),
-                const SizedBox(height: 22),
-
-                // TIMER CIRCLE
-                Container(
+                SizedBox(
                   width: circleSize,
                   height: circleSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.card,
-                    border: Border.all(color: AppTheme.primaryTeal, width: 8),
-                    boxShadow: [
-                      BoxShadow(
-                          color: AppTheme.primaryTeal.withOpacity(0.15),
-                          blurRadius: 25,
-                          spreadRadius: 5)
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(_timer.timerText,
-                                  style: const TextStyle(
-                                      fontSize: 80,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.primaryTeal,
-                                      letterSpacing: 2)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(isRunning ? 'Focusing...' : 'Ready to focus',
-                            style: TextStyle(
-                                color: AppTheme.txtGrey, fontSize: 13)),
-                        const SizedBox(height: 5),
-                        Text(_timer.selectedActivity.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: AppTheme.primaryTeal,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2)),
-                      ],
-                    ),
+                  child: CircularProgressIndicator(
+                    value: _timer.remainingSeconds / (_timer.selectedMinutes * 60 + _timer.selectedSeconds),
+                    strokeWidth: 10,
+                    backgroundColor: AppTheme.border,
+                    color: AppTheme.primary,
+                    strokeCap: StrokeCap.round,
                   ),
                 ),
-                const SizedBox(height: 25),
-
-                // KATEGORI
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Mau fokus mengerjakan apa?',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.txt)),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 65,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: activities.length,
-                    itemBuilder: (context, index) {
-                      final activity = activities[index];
-                      final name = activity['name'] as String;
-                      final selected = _timer.selectedActivity == name;
-                      return GestureDetector(
-                        onTap: isRunning ? null : () => _timer.setActivity(name),
-                        child: Container(
-                          width: 68,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? AppTheme.primaryTeal
-                                : AppTheme.card,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: selected
-                                  ? AppTheme.primaryTeal
-                                  : AppTheme.txtGrey.withOpacity(0.2),
-                              width: selected ? 2 : 1,
-                            ),
-                            boxShadow: selected
-                                ? [
-                              BoxShadow(
-                                  color: AppTheme.primaryTeal
-                                      .withOpacity(0.3),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3))
-                            ]
-                                : [],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(activity['icon'] as IconData,
-                                  size: 22,
-                                  color: selected
-                                      ? Colors.white
-                                      : AppTheme.primaryTeal),
-                              const SizedBox(height: 5),
-                              Padding(
-                                padding:
-                                const EdgeInsets.symmetric(horizontal: 3),
-                                child: Text(
-                                  name,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: selected
-                                        ? Colors.white
-                                        : AppTheme.txt,
-                                    fontWeight: selected
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 25),
-
-                // CHOOSE DURATION
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Choose Duration',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.txt)),
-                ),
-                const SizedBox(height: 12),
-                Row(
+                Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(child: _presetButton(15)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _presetButton(25)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _presetButton(45)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _editButton()),
+                    Text(_timer.timerText, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w300, color: AppTheme.txt, letterSpacing: -2)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                      child: Text(_timer.selectedActivity.toUpperCase(), style: TextStyle(color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    ),
                   ],
                 ),
-
-                if (customPresets.isNotEmpty) ...[
-                  const SizedBox(height: 25),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: [
-                        Text('Preset Tersimpan',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.txt)),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: AppTheme.primaryTeal.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Text('${customPresets.length}',
-                              style: const TextStyle(
-                                  color: AppTheme.primaryTeal,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ...List.generate(customPresets.length, (i) {
-                    return _customPresetTile(i);
-                  }),
-                ] else ...[
-                  const SizedBox(height: 25),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppTheme.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: AppTheme.txtGrey.withOpacity(0.2)),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(Icons.bookmark_border,
-                            size: 40,
-                            color: AppTheme.txtGrey.withOpacity(0.5)),
-                        const SizedBox(height: 10),
-                        Text('Belum ada preset tersimpan',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.txt)),
-                        const SizedBox(height: 4),
-                        Text('Tap ikon ➕ untuk menambah waktu custom',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                fontSize: 12, color: AppTheme.txtGrey)),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 25),
-
-                // MUSIK
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.card,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                        color: AppTheme.txtGrey.withOpacity(0.15)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(9),
-                            decoration: BoxDecoration(
-                                color:
-                                AppTheme.primaryTeal.withOpacity(0.13),
-                                borderRadius: BorderRadius.circular(12)),
-                            child: const Icon(Icons.music_note_rounded,
-                                color: AppTheme.primaryTeal),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Musik Pendamping',
-                                    style: TextStyle(
-                                        color: AppTheme.txt,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 3),
-                                Text('Opsional untuk menemani sesi fokus',
-                                    style: TextStyle(
-                                        color: AppTheme.txtGrey,
-                                        fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...musicOptions.map((music) {
-                        final name = music['name'] as String;
-                        final selected = _timer.selectedMusic == name;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? AppTheme.primaryTeal.withOpacity(0.10)
-                                : AppTheme.bg,
-                            borderRadius: BorderRadius.circular(13),
-                            border: Border.all(
-                                color: selected
-                                    ? AppTheme.primaryTeal
-                                    : AppTheme.txtGrey.withOpacity(0.12)),
-                          ),
-                          child: ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 2),
-                            leading: Icon(music['icon'] as IconData,
-                                color: AppTheme.primaryTeal),
-                            title: Text(name,
-                                style: TextStyle(
-                                    color: AppTheme.txt,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14)),
-                            subtitle: Text(music['subtitle'] as String,
-                                style: TextStyle(
-                                    color: AppTheme.txtGrey, fontSize: 11)),
-                            trailing: Icon(
-                                selected
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                color: selected
-                                    ? AppTheme.primaryTeal
-                                    : AppTheme.txtGrey,
-                                size: 24),
-                            onTap: () =>
-                                _timer.setMusic(music['name'] as String),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 25),
-
-                Row(
-                  children: [
-                    Expanded(
-                      flex: isRunning ? 3 : 1,
-                      child: SizedBox(
-                        height: 55,
-                        child: ElevatedButton.icon(
-                          onPressed: _timer.toggle,
-                          icon: Icon(isRunning
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded),
-                          label: Text(isRunning ? 'Pause' : 'Mulai Fokus'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryTeal,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(0, 55),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (isRunning) ...[
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: SizedBox(
-                          height: 55,
-                          child: OutlinedButton.icon(
-                            onPressed: _confirmEndSession,
-                            icon: const Icon(Icons.stop_circle_outlined),
-                            label: const Text('End'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.redAccent,
-                              side:
-                              const BorderSide(color: Colors.redAccent),
-                              minimumSize: const Size(0, 55),
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextButton.icon(
-                    onPressed: _timer.reset,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reset Timer')),
-                const SizedBox(height: 20),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _presetButton(int minutes) {
-    final selected = _timer.activePreset == minutes;
-    return GestureDetector(
-      onTap: () => _timer.selectPreset(minutes),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primaryTeal : AppTheme.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: selected
-                  ? AppTheme.primaryTeal
-                  : AppTheme.txtGrey.withOpacity(0.2)),
-        ),
-        child: Center(
-          child: Text('$minutes m',
-              style: TextStyle(
-                  color: selected ? Colors.white : AppTheme.txt,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13)),
-        ),
-      ),
-    );
-  }
-
-  Widget _editButton() {
-    return GestureDetector(
-      onTap: _openCustomTimeDialog,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.txtGrey.withOpacity(0.2)),
-        ),
-        child: Center(
-            child: Icon(Icons.add, size: 20, color: AppTheme.primaryTeal)),
-      ),
-    );
-  }
-
-  Widget _customPresetTile(int index) {
-    final p = customPresets[index];
-    final m = p['minutes'] as int;
-    final s = p['seconds'] as int;
-    final label = p['label'] as String? ?? _formatLabel(m, s);
-    final isActive = _timer.activeCustomIndex == index;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isActive
-            ? AppTheme.primaryTeal.withOpacity(0.15)
-            : AppTheme.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: isActive
-                ? AppTheme.primaryTeal
-                : AppTheme.txtGrey.withOpacity(0.15),
-            width: isActive ? 1.5 : 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: AppTheme.primaryTeal.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.bookmark,
-                size: 18, color: AppTheme.primaryTeal),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const Spacer(flex: 1),
+            SizedBox(
+              height: 50,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: activities.length,
+                itemBuilder: (context, index) {
+                  final name = activities[index]['name'] as String;
+                  final selected = _timer.selectedActivity == name;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: GestureDetector(
+                      onTap: isRunning ? null : () => _timer.setActivity(name),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        decoration: BoxDecoration(
+                          color: selected ? AppTheme.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(color: selected ? AppTheme.primary : AppTheme.border, width: 1.5),
+                        ),
+                        child: Center(
+                          child: Text(name, style: TextStyle(color: selected ? Colors.white : AppTheme.txtGrey, fontWeight: selected ? FontWeight.bold : FontWeight.w500)),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: isActive
-                            ? AppTheme.primaryTeal
-                            : AppTheme.txt)),
-                const SizedBox(height: 2),
-                Text('Durasi fokus',
-                    style:
-                    TextStyle(fontSize: 11, color: AppTheme.txtGrey)),
+                if (isRunning)
+                  IconButton(onPressed: () => _timer.reset(), icon: Icon(Icons.stop_rounded, color: Colors.red.shade300, size: 40)),
+                const SizedBox(width: 24),
+                GestureDetector(
+                  onTap: _timer.toggle,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))],
+                    ),
+                    child: Icon(isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                if (!isRunning)
+                  IconButton(onPressed: _openCustomTimeDialog, icon: Icon(Icons.add_rounded, color: AppTheme.txt, size: 40)),
               ],
             ),
-          ),
-          GestureDetector(
-            onTap: () => _startPresetNow(index),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                  color: AppTheme.primaryTeal, shape: BoxShape.circle),
-              child: const Icon(Icons.play_arrow,
-                  color: Colors.white, size: 22),
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => _deleteCustomPreset(index),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.12),
-                  shape: BoxShape.circle),
-              child: const Icon(Icons.delete_outline,
-                  color: Colors.red, size: 18),
-            ),
-          ),
-        ],
+            const SizedBox(height: 60),
+          ],
+        ),
       ),
     );
   }

@@ -4,24 +4,19 @@ import 'storage_service.dart';
 import 'challenge_service.dart';
 
 class TimerService extends ChangeNotifier {
-  // Singleton
   static final TimerService instance = TimerService._internal();
   TimerService._internal();
 
-  // Global navigator key untuk show dialog di mana pun
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-  // State timer
   int selectedMinutes = 25;
   int selectedSeconds = 0;
   int remainingSeconds = 25 * 60;
   bool isRunning = false;
 
-  // Preset aktif
   int? activePreset = 25;
   int activeCustomIndex = -1;
 
-  // Aktivitas & musik
   String selectedActivity = 'Belajar';
   String selectedMusic = 'Lo-fi Focus';
 
@@ -31,9 +26,7 @@ class TimerService extends ChangeNotifier {
     final h = remainingSeconds ~/ 3600;
     final m = (remainingSeconds % 3600) ~/ 60;
     final s = remainingSeconds % 60;
-    if (h > 0) {
-      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-    }
+    if (h > 0) return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
@@ -48,12 +41,7 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectCustomPreset({
-    required int minutes,
-    required int seconds,
-    required int index,
-    String? activity,
-  }) {
+  void selectCustomPreset({required int minutes, required int seconds, required int index, String? activity}) {
     _timer?.cancel();
     selectedMinutes = minutes;
     selectedSeconds = seconds;
@@ -76,13 +64,7 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggle() {
-    if (isRunning) {
-      pause();
-    } else {
-      start();
-    }
-  }
+  void toggle() => isRunning ? pause() : start();
 
   void start() {
     if (isRunning) return;
@@ -117,11 +99,9 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> _onComplete() async {
-    // Simpan statistik
     await StorageService.recordPomodoroCompleted();
     final result = await ChallengeService.evaluate();
 
-    // Show dialog di mana pun user berada
     final context = navigatorKey.currentContext;
     if (context == null) return;
 
@@ -139,21 +119,15 @@ class TimerService extends ChangeNotifier {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF009688).withOpacity(0.15),
+                  color: const Color(0xFF2C5F51).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('+${result.xpGained} XP',
-                        style: const TextStyle(
-                            color: Color(0xFF009688),
-                            fontWeight: FontWeight.bold)),
+                    Text('+${result.xpGained} XP', style: const TextStyle(color: Color(0xFF2C5F51), fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    ...result.newlyCompleted.map((c) => Text(
-                        '🏆 ${c.title}',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF009688)))),
+                    ...result.newlyCompleted.map((c) => Text('🏆 ${c.title}', style: const TextStyle(fontSize: 12, color: Color(0xFF2C5F51)))),
                   ],
                 ),
               ),
@@ -161,10 +135,7 @@ class TimerService extends ChangeNotifier {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );

@@ -1,223 +1,117 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color primaryTeal = Color(0xFF009688);
-  static const Color darkTeal = Color(0xFF00796B);
-  static const Color lightTeal = Color(0xFFE0F2F1);
+  static const List<Map<String, dynamic>> colorThemes = [
+    {'primary': Color(0xFF2C5F51), 'dark': Color(0xFF1E4238), 'name': 'Emerald'},
+    {'primary': Color(0xFF3F51B5), 'dark': Color(0xFF283593), 'name': 'Indigo'},
+    {'primary': Color(0xFFD32F2F), 'dark': Color(0xFFB71C1C), 'name': 'Crimson'},
+    {'primary': Color(0xFF8E24AA), 'dark': Color(0xFF4A148C), 'name': 'Royal Purple'},
+    {'primary': Color(0xFFF57C00), 'dark': Color(0xFFE65100), 'name': 'Amber'},
+  ];
 
-  // LIGHT MODE
-  static const Color background = Color(0xFFF5FAF9);
-  static const Color textDark = Color(0xFF263238);
-  static const Color textGrey = Color(0xFF78909C);
+  static int _themeColorIndex = 0;
+  static final ValueNotifier<int> colorNotifier = ValueNotifier<int>(0);
+
+  static void setThemeColorIndex(int index) {
+    _themeColorIndex = index;
+    colorNotifier.value = index;
+  }
+
+  static Color get primary => colorThemes[_themeColorIndex]['primary'] as Color;
+  static Color get darkTeal => colorThemes[_themeColorIndex]['dark'] as Color;
+  static const Color accent = Color(0xFFE8A87C);
+
+  static const Color lightBg = Color(0xFFF9F7F3);
   static const Color lightCard = Color(0xFFFFFFFF);
+  static const Color lightText = Color(0xFF1E1E1E);
+  static const Color lightTextGrey = Color(0xFF8A8A8A);
+  static const Color lightBorder = Color(0xFFEBE6E0);
 
-  // DARK MODE
-  static const Color darkBackground = Color(0xFF0F1413);
-  static const Color darkCard = Color(0xFF1E2423);
-  static const Color darkNavBar = Color(0xFF161B1A);
-  static const Color darkText = Color(0xFFEEEEEE);
+  static const Color darkBg = Color(0xFF0F1110);
+  static const Color darkCard = Color(0xFF1A1D1C);
+  static const Color darkText = Color(0xFFF2F2F2);
   static const Color darkTextGrey = Color(0xFF9E9E9E);
-  static const Color darkDivider = Color(0xFF2A3331);
+  static const Color darkBorder = Color(0xFF2A2E2D);
 
   static bool isDarkMode = false;
-  static final ValueNotifier<bool> themeNotifier =
-  ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> themeNotifier = ValueNotifier<bool>(false);
 
   static void setDarkMode(bool value) {
     isDarkMode = value;
     themeNotifier.value = value;
   }
 
-  // DYNAMIC GETTERS
-  static Color get bg => isDarkMode ? darkBackground : background;
+  static Color get bg => isDarkMode ? darkBg : lightBg;
   static Color get card => isDarkMode ? darkCard : lightCard;
-  static Color get txt => isDarkMode ? darkText : textDark;
-  static Color get txtGrey => isDarkMode ? darkTextGrey : textGrey;
+  static Color get txt => isDarkMode ? darkText : lightText;
+  static Color get txtGrey => isDarkMode ? darkTextGrey : lightTextGrey;
+  static Color get border => isDarkMode ? darkBorder : lightBorder;
+
+  static Color get primaryTeal => primary;
+  static Color get lightTeal => isDarkMode ? primary.withValues(alpha: 0.2) : primary.withValues(alpha: 0.1);
+  static Color get textGrey => txtGrey;
 
   static ThemeData get lightTheme => _buildTheme(false);
   static ThemeData get darkTheme => _buildTheme(true);
 
   static ThemeData _buildTheme(bool dark) {
-    final bgColor = dark ? darkBackground : background;
-    final cardColor = dark ? darkCard : lightCard;
-    final navColor = dark ? darkNavBar : Colors.white;
-    final textColor = dark ? darkText : textDark;
-    final textGreyColor = dark ? darkTextGrey : textGrey;
+    final String fontFamily = GoogleFonts.plusJakartaSans().fontFamily!;
 
     return ThemeData(
       useMaterial3: true,
       brightness: dark ? Brightness.dark : Brightness.light,
-      scaffoldBackgroundColor: bgColor,
-      canvasColor: bgColor,
+      scaffoldBackgroundColor: bg,
+      canvasColor: bg,
+      fontFamily: fontFamily,
 
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryTeal,
-        primary: primaryTeal,
-        secondary: darkTeal,
+        seedColor: primary,
         brightness: dark ? Brightness.dark : Brightness.light,
-        surface: cardColor,
-        onSurface: textColor,
-        surfaceContainer: navColor,
-        surfaceContainerHighest: navColor,
+        surface: card,
+        onSurface: txt,
       ),
 
       appBarTheme: AppBarTheme(
-        backgroundColor: bgColor,
+        backgroundColor: bg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        foregroundColor: textColor,
-        iconTheme: IconThemeData(color: textColor),
+        iconTheme: IconThemeData(color: txt),
+        titleTextStyle: TextStyle(fontFamily: fontFamily, color: txt, fontSize: 20, fontWeight: FontWeight.bold),
+      ),
+
+      cardTheme: CardThemeData(
+        color: card,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: border, width: 1.5),
+        ),
       ),
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: cardColor,
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
-        labelStyle: TextStyle(color: textGreyColor),
-        hintStyle: TextStyle(color: textGreyColor),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: primaryTeal, width: 2),
-        ),
-        prefixIconColor: primaryTeal,
+        fillColor: card,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        labelStyle: TextStyle(color: txtGrey, fontFamily: fontFamily),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: border, width: 1.5)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: border, width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primary, width: 2)),
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryTeal,
+          backgroundColor: primary,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          elevation: 0,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.bold, letterSpacing: 0.5),
         ),
       ),
-
-      cardTheme: CardThemeData(
-        color: cardColor,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-      ),
-
-      // ============ NAV BAR ============
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: navColor,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        indicatorColor:
-        dark ? primaryTeal.withOpacity(0.25) : lightTeal,
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: primaryTeal, size: 24);
-          }
-          return IconThemeData(color: textGreyColor, size: 24);
-        }),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
-              color: primaryTeal,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            );
-          }
-          return TextStyle(
-            color: textGreyColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          );
-        }),
-      ),
-
-      // ============ SWITCH THEME (YANG DIPERBAIKI) ============
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return Colors.white; // 👈 putih saat nyala
-          }
-          // saat mati: bulatan putih dengan sedikit abu
-          return dark ? const Color(0xFFB0BEC5) : Colors.white;
-        }),
-        trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return primaryTeal; // 👈 teal saat nyala
-          }
-          // saat mati: abu-abu gelap (terang) / abu-abu sedang (gelap)
-          return dark ? const Color(0xFF37474F) : const Color(0xFFBDBDBD);
-        }),
-        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return Colors.transparent;
-          }
-          // outline abu tua biar jelas di background putih
-          return dark
-              ? const Color(0xFF546E7A)
-              : const Color(0xFF9E9E9E);
-        }),
-        trackOutlineWidth: WidgetStateProperty.all(1.5),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-
-      dialogTheme: DialogThemeData(
-        backgroundColor: cardColor,
-        surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(
-          color: textColor,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-        contentTextStyle: TextStyle(color: textColor, fontSize: 14),
-      ),
-
-      bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: cardColor,
-        surfaceTintColor: Colors.transparent,
-      ),
-
-      dividerTheme: DividerThemeData(
-        color: dark ? darkDivider : Colors.grey.shade300,
-      ),
-
-      listTileTheme: ListTileThemeData(
-        iconColor: primaryTeal,
-        textColor: textColor,
-      ),
-
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: darkTeal,
-        contentTextStyle: const TextStyle(color: Colors.white),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-
-      textTheme: TextTheme(
-        bodyLarge: TextStyle(color: textColor),
-        bodyMedium: TextStyle(color: textColor),
-        bodySmall: TextStyle(color: textGreyColor),
-        titleLarge:
-        TextStyle(color: textColor, fontWeight: FontWeight.bold),
-        titleMedium:
-        TextStyle(color: textColor, fontWeight: FontWeight.w600),
-        labelLarge: TextStyle(color: textColor),
-      ),
-
-      iconTheme: IconThemeData(color: textColor),
     );
   }
 }

@@ -9,7 +9,6 @@ import '../screens/profil_screen.dart';
 class BottomNav extends StatefulWidget {
   const BottomNav({super.key});
 
-  // 👇 Static notifier biar halaman lain bisa pindah tab
   static final ValueNotifier<int> navNotifier = ValueNotifier<int>(0);
 
   @override
@@ -49,7 +48,7 @@ class _BottomNavState extends State<BottomNav> {
       case 3:
         return const ChallengeScreen();
       case 4:
-        return const ProfilScreen();
+        return const ProfilScreen(); // Pastikan tidak ada error di sini
       default:
         return const HomeScreen();
     }
@@ -70,35 +69,13 @@ class _BottomNavState extends State<BottomNav> {
               setState(() => currentIndex = index);
             },
             backgroundColor: AppTheme.card,
-            indicatorColor: AppTheme.isDarkMode
-                ? AppTheme.primaryTeal.withOpacity(0.25)
-                : AppTheme.lightTeal,
+            indicatorColor: AppTheme.isDarkMode ? AppTheme.primary.withValues(alpha: 0.25) : AppTheme.lightTeal,
             destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.timer_outlined),
-                selectedIcon: Icon(Icons.timer),
-                label: 'Timer',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.groups_outlined),
-                selectedIcon: Icon(Icons.groups),
-                label: 'Gang',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.emoji_events_outlined),
-                selectedIcon: Icon(Icons.emoji_events),
-                label: 'Challenge',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Profile',
-              ),
+              NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+              NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Timer'),
+              NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Gang'),
+              NavigationDestination(icon: Icon(Icons.emoji_events_outlined), selectedIcon: Icon(Icons.emoji_events), label: 'Challenge'),
+              NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
             ],
           ),
         );
