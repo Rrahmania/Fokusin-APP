@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
+import '../services/ai_service.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -241,6 +242,207 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
+  Future<void> _evaluateAiPerformance() async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) {
+        bool isEvaluating = true;
+        AiPerformanceReport? report;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            if (isEvaluating && report == null) {
+              final historyMap = <String, int>{};
+              for (final e in weekData) {
+                historyMap['${e.key.day}/${e.key.month}'] = e.value;
+              }
+
+              AiService.evaluatePerformance(
+                totalWeek: totalWeek,
+                averageDaily: average,
+                bestDayCount: bestDay,
+                bestDayName: bestDayName,
+                currentStreak: currentStreak,
+                totalXp: totalXp,
+                weekHistory: historyMap,
+              ).then((result) {
+                if (context.mounted) {
+                  setModalState(() {
+                    report = result;
+                    isEvaluating = false;
+                  });
+                }
+              });
+            }
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 45,
+                        height: 5,
+                        decoration: BoxDecoration(color: AppTheme.txtGrey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
+                          child: Icon(Icons.auto_awesome, color: AppTheme.primary, size: 26),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Evaluasi Kinerja AI', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+                              Text('Analisis produktivitas & rekomendasi cerdas', style: TextStyle(fontSize: 13, color: AppTheme.txtGrey)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (isEvaluating)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text('AI sedang menganalisis kinerjamu...', style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (report != null) ...[
+                      // SCORE CARD
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+                              child: Center(
+                                child: Text(report!.grade, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Skor Fokus: ${report!.score}/100', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  Text(report!.summary, style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.3)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // STRENGTHS
+                      Text('💪 Kelebihan Utama', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.txt)),
+                      const SizedBox(height: 8),
+                      ...report!.strengths.map((s) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(s, style: TextStyle(color: AppTheme.txt, fontSize: 13))),
+                          ],
+                        ),
+                      )),
+                      const SizedBox(height: 20),
+
+                      // IMPROVEMENTS
+                      Text('🎯 Area Perbaikan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.txt)),
+                      const SizedBox(height: 8),
+                      ...report!.improvements.map((imp) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.stars_rounded, color: Colors.orange, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(imp, style: TextStyle(color: AppTheme.txt, fontSize: 13))),
+                          ],
+                        ),
+                      )),
+                      const SizedBox(height: 20),
+
+                      // ADVICE
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.lightbulb_rounded, color: AppTheme.primary, size: 22),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Nasehat AI Mingguan', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 13)),
+                                  const SizedBox(height: 4),
+                                  Text(report!.advice, style: TextStyle(color: AppTheme.txt, fontSize: 13, height: 1.4)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Tutup'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildLockedStats() {
     return Container(
       width: double.infinity,
@@ -304,6 +506,51 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     Text('$totalWeek', style: const TextStyle(color: Colors.white, fontSize: 44, fontWeight: FontWeight.bold, height: 1)),
                     const SizedBox(height: 4),
                     const Text('Total Pomodoro minggu ini', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // AI EVALUATION CARD
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.border, width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.auto_awesome, color: AppTheme.primary, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Evaluasi Kinerja AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.txt)),
+                          const SizedBox(height: 4),
+                          Text('Dapatkan analisis kinerja & skor mingguanmu', style: TextStyle(fontSize: 12, color: AppTheme.txtGrey)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _evaluateAiPerformance,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Evaluasi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
                   ],
                 ),
               ),

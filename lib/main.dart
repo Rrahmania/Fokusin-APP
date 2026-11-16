@@ -13,7 +13,6 @@ void main() async {
 
   AppTheme.setDarkMode(isDark);
   AppTheme.setThemeColorIndex(colorIndex);
-
   MusicService.instance.init();
 
   runApp(const FokusinApp());

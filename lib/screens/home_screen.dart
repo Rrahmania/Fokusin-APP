@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../widgets/music_card.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/ai_recommendation.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,26 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool streakBroken = false;
   int lastStreakValue = 0;
   final int restoreStreakCost = 50;
-
-  // State untuk AI Recommendation
-  int aiIndex = 0;
-  final List<Map<String, dynamic>> aiSuggestions = [
-    {
-      'title': 'Belajar Flutter UI',
-      'desc': 'Kamu sudah fokus dengan baik minggu ini. Coba pelajari animasi di Flutter selama 25 menit.',
-      'tag': 'Coding',
-    },
-    {
-      'title': 'Review Materi Kuliah',
-      'desc': 'Gunakan waktu fokus untuk mengulang materi yang belum dikuasai hari ini.',
-      'tag': 'Belajar',
-    },
-    {
-      'title': 'Kerjakan Project',
-      'desc': 'Lanjutkan project yang sedang kamu kerjakan. Selesaikan satu sub-task dulu.',
-      'tag': 'Bekerja',
-    },
-  ];
 
   @override
   void initState() {
@@ -73,12 +54,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _goToProfile() => BottomNav.navNotifier.value = 4;
-
-  void _nextAiSuggestion() {
-    setState(() {
-      aiIndex = (aiIndex + 1) % aiSuggestions.length;
-    });
-  }
 
   Future<void> _restoreStreak() async {
     if (xp < restoreStreakCost) {
@@ -126,8 +101,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentAi = aiSuggestions[aiIndex];
-
     return Scaffold(
       backgroundColor: AppTheme.bg,
       body: SafeArea(
@@ -277,62 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 32),
 
               // AI RECOMMENDATION
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Saran Fokus AI", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
-                  IconButton(
-                    onPressed: _nextAiSuggestion,
-                    icon: Icon(Icons.refresh, color: AppTheme.txtGrey, size: 20),
-                    tooltip: 'Ganti Saran',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => BottomNav.navNotifier.value = 1,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2), width: 1.5),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), shape: BoxShape.circle),
-                        child: Icon(Icons.auto_awesome, color: AppTheme.primary, size: 24), // Hapus const
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(8)),
-                                  child: Text(currentAi['tag'], style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                ),
-                                const Spacer(),
-                                Icon(Icons.arrow_forward, size: 16, color: AppTheme.primary), // Hapus const
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text(currentAi['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.txt)),
-                            const SizedBox(height: 6),
-                            Text(currentAi['desc'], style: TextStyle(fontSize: 13, height: 1.4, color: AppTheme.txtGrey)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const AiRecommendation(),
               const SizedBox(height: 32),
 
               // MUSIK

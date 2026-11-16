@@ -274,6 +274,59 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
+  void _showApiKeySettings() async {
+    final currentKey = await StorageService.loadApiKey();
+    final keyController = TextEditingController(text: currentKey);
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Colors.teal),
+            SizedBox(width: 8),
+            Text('Pengaturan Gemini AI'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Masukkan Gemini API Key milikmu (opsional) untuk mengaktifkan integrasi langsung dengan Google Gemini AI.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: keyController,
+              decoration: const InputDecoration(
+                labelText: 'Gemini API Key',
+                hintText: 'AIzaSy...',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () async {
+              await StorageService.saveApiKey(keyController.text.trim());
+              if (!mounted) return;
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('API Key Gemini berhasil disimpan! ✓'), backgroundColor: Colors.teal),
+              );
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showLogout() {
     showDialog(
       context: context,
@@ -510,6 +563,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
               const SizedBox(height: 12),
               _SwitchTile(icon: darkMode ? Icons.dark_mode : Icons.light_mode, title: 'Dark Mode', value: darkMode, onChanged: _toggleDarkMode),
               _SwitchTile(icon: Icons.lock_outline, title: 'Kunci Aplikasi', value: lockApp, onChanged: _toggleLockApp),
+              _TileButton(icon: Icons.auto_awesome, title: 'Pengaturan Gemini AI', onTap: _showApiKeySettings),
               _TileButton(icon: Icons.bar_chart_rounded, title: 'Statistik Mingguan', onTap: _openStatistics),
               _TileButton(icon: Icons.help_outline, title: 'Help & Support', onTap: _showHelp),
               const SizedBox(height: 20),

@@ -24,6 +24,7 @@ class StorageService {
 
   static const String _keyStreakFreeze = 'streak_freeze_active';
   static const String _keyThemeColor = 'theme_color_index';
+  static const String _keyApiKey = 'gemini_api_key';
 
   static Future<bool> registerUser({required String name, required String email, required String password}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -379,6 +380,16 @@ class StorageService {
   static Future<void> saveEquippedFrame(String id) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyEquippedFrame, id);
+  }
+
+  static Future<void> saveApiKey(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyApiKey, key);
+  }
+
+  static Future<String> loadApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyApiKey) ?? '';
   }
 
   static String _todayStr() {
