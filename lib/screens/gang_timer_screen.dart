@@ -4,7 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../services/music_service.dart';
-import '../models/music_model.dart';
+// import '../models/music_model.dart'; <-- DIHAPUS KARENA TIDAK DIPAKAI
 
 class GangTimerScreen extends StatefulWidget {
   final String gangName;
@@ -167,6 +167,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
 
   Future<bool> _payXp(int amount, String featureName) async {
     if (userXp < amount) {
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('XP tidak cukup! Butuh $amount XP untuk $featureName.'), backgroundColor: Colors.red),
       );
@@ -177,6 +178,8 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     if (success) {
       _loadXp();
       MusicService.instance.userXp = await StorageService.loadXp();
+
+      if (!mounted) return false; // <-- PENGAMAN AGAR TIDAK ERROR
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('-$amount XP. $featureName berhasil digunakan!'), backgroundColor: AppTheme.darkTeal),
       );
@@ -287,7 +290,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                               : Text('Putar', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
                           onTap: () async {
                             if (isCurrent) {
-                              MusicService.instance.togglePlay();
+                              MusicService.instance.togglePlay(forcePlay: true);
                               setModalState(() {});
                               setState(() {});
                               return;
@@ -295,7 +298,8 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
 
                             bool success = await _payXp(costGangMusic, 'Memutar ${track.title}');
                             if (success) {
-                              MusicService.instance.selectTrack(index);
+                              MusicService.instance.selectTrack(index, forcePlay: true);
+                              MusicService.instance.playAudio(forcePlay: true);
                               setModalState(() {});
                               setState(() {});
                             }
@@ -325,7 +329,6 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     _stickerController.forward(from: 0);
   }
 
-  // FORMAT WAKTU DIPERBARUI (Mendukung Jam:Menit:Detik)
   String _formatTime(int seconds) {
     final h = (seconds ~/ 3600).toString().padLeft(2, '0');
     final m = ((seconds % 3600) ~/ 60).toString().padLeft(2, '0');
@@ -422,7 +425,6 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                     ),
                     Column(
                       children: [
-                        // --- FITTED BOX AGAR TEKS TIDAK KEPOTONG ---
                         SizedBox(
                           width: 200,
                           child: FittedBox(
@@ -531,7 +533,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                         ),
                         IconButton(
                           onPressed: () {
-                            MusicService.instance.togglePlay();
+                            MusicService.instance.togglePlay(forcePlay: true);
                             setState((){});
                           },
                           icon: Icon(MusicService.instance.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, color: AppTheme.primary, size: 32),

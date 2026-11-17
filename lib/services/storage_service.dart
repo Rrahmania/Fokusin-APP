@@ -21,7 +21,8 @@ class StorageService {
   static const String _keyCurrentUserEmail = 'current_user_email';
   static const String _keyOwnedFrames = 'owned_frames';
   static const String _keyEquippedFrame = 'equipped_frame';
-  static const String _keyOwnedThemes = 'owned_theme_colors'; // BARU
+  static const String _keyOwnedThemes = 'owned_theme_colors';
+  static const String _keyOwnedMusic = 'owned_music_tracks'; // BARU
 
   static const String _keyStreakFreeze = 'streak_freeze_active';
   static const String _keyThemeColor = 'theme_color_index';
@@ -261,7 +262,6 @@ class StorageService {
     return prefs.getInt(_keyThemeColor) ?? 0;
   }
 
-  // --- FUNGSI BARU UNTUK TEMA WARNA ---
   static Future<List<int>> loadOwnedThemes() async {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList(_keyOwnedThemes);
@@ -273,7 +273,18 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_keyOwnedThemes, themes.map((e) => e.toString()).toList());
   }
-  // -------------------------------------
+
+  // --- FUNGSI BARU UNTUK MUSIK ---
+  static Future<List<String>> loadOwnedMusic() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_keyOwnedMusic) ?? [];
+  }
+
+  static Future<void> saveOwnedMusic(List<String> titles) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_keyOwnedMusic, titles);
+  }
+  // -------------------------------
 
   static Future<void> checkStreakStatus() async {
     final prefs = await SharedPreferences.getInstance();
