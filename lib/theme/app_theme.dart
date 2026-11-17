@@ -8,6 +8,12 @@ class AppTheme {
     {'primary': Color(0xFFD32F2F), 'dark': Color(0xFFB71C1C), 'name': 'Crimson'},
     {'primary': Color(0xFF8E24AA), 'dark': Color(0xFF4A148C), 'name': 'Royal Purple'},
     {'primary': Color(0xFFF57C00), 'dark': Color(0xFFE65100), 'name': 'Amber'},
+    // 5 Warna Soft Baru:
+    {'primary': Color(0xFF4A90E2), 'dark': Color(0xFF2E5E99), 'name': 'Soft Blue'},
+    {'primary': Color(0xFFD16BA5), 'dark': Color(0xFF8F4470), 'name': 'Soft Rose'},
+    {'primary': Color(0xFF48B59A), 'dark': Color(0xFF2E7A67), 'name': 'Soft Mint'},
+    {'primary': Color(0xFFE29B4A), 'dark': Color(0xFF99662E), 'name': 'Soft Peach'},
+    {'primary': Color(0xFF9B7EDE), 'dark': Color(0xFF634D99), 'name': 'Soft Lavender'},
   ];
 
   static int _themeColorIndex = 0;

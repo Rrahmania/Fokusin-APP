@@ -16,7 +16,7 @@ class GangData {
   String leader;
   int target;
   int completed;
-  int focusDuration; // Durasi Fokus (Menit)
+  int focusDuration;
   List<String> members;
   List<String> pendingMembers;
   List<String> friends;
@@ -52,84 +52,74 @@ class _GangScreenState extends State<GangScreen> {
   void createGang() {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
-    String purpose = 'Belajar';
-    int target = 10;
-    int duration = 25;
 
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Buat Gang Baru'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nama Gang', hintText: 'Contoh: Study Squad', prefixIcon: Icon(Icons.groups))),
-                    const SizedBox(height: 12),
-                    TextField(controller: descriptionController, maxLines: 2, decoration: const InputDecoration(labelText: 'Deskripsi', hintText: 'Apa tujuan Gang ini?', prefixIcon: Icon(Icons.description))),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: purpose,
-                      decoration: const InputDecoration(labelText: 'Tujuan Gang'),
-                      items: ['Belajar', 'Bekerja', 'Olahraga'].map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
-                      onChanged: (value) { if (value != null) setDialogState(() => purpose = value); },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      initialValue: target,
-                      decoration: const InputDecoration(labelText: 'Target Pomodoro harian'),
-                      items: [4, 6, 8, 10, 12].map((value) => DropdownMenuItem(value: value, child: Text('$value sesi'))).toList(),
-                      onChanged: (value) { if (value != null) setDialogState(() => target = value); },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      initialValue: duration,
-                      decoration: const InputDecoration(labelText: 'Waktu Fokus (Menit)'),
-                      items: [15, 25, 30, 45, 60].map((value) => DropdownMenuItem(value: value, child: Text('$value menit'))).toList(),
-                      onChanged: (value) { if (value != null) setDialogState(() => duration = value); },
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('Sebagai pembuat Gang, kamu otomatis menjadi Leader.', style: TextStyle(fontSize: 12)),
-                  ],
+        return AlertDialog(
+          title: const Text('Buat Gang Baru'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                        labelText: 'Nama Gang',
+                        hintText: 'Contoh: Study Squad',
+                        prefixIcon: Icon(Icons.groups)
+                    )
                 ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Batal')),
-                ElevatedButton(
-                  onPressed: () {
-                    final name = nameController.text.trim();
-                    if (name.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama Gang wajib diisi.')));
-                      return;
-                    }
-                    final exists = gangs.any((gang) => gang.name.toLowerCase() == name.toLowerCase());
-                    if (exists) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama Gang sudah digunakan.')));
-                      return;
-                    }
-                    setState(() {
-                      gangs.insert(0, GangData(
-                          name: name,
-                          description: descriptionController.text.trim().isEmpty ? 'Komunitas fokus bersama.' : descriptionController.text.trim(),
-                          purpose: purpose,
-                          leader: currentUser,
-                          target: target,
-                          focusDuration: duration,
-                          members: [currentUser]
-                      ));
-                      selectedTab = 0;
-                    });
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gang berhasil dibuat! Kamu adalah Leader 🎉')));
-                  },
-                  child: const Text('Buat Gang'),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: descriptionController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                        labelText: 'Deskripsi',
+                        hintText: 'Apa tujuan Gang ini?',
+                        prefixIcon: Icon(Icons.description)
+                    )
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sebagai pembuat Gang, kamu otomatis menjadi Leader. Waktu fokus dapat diatur nanti.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
-            );
-          },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Batal')),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama Gang wajib diisi.')));
+                  return;
+                }
+                final exists = gangs.any((gang) => gang.name.toLowerCase() == name.toLowerCase());
+                if (exists) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama Gang sudah digunakan.')));
+                  return;
+                }
+                setState(() {
+                  gangs.insert(0, GangData(
+                      name: name,
+                      description: descriptionController.text.trim().isEmpty ? 'Komunitas fokus bersama.' : descriptionController.text.trim(),
+                      purpose: 'Belajar',
+                      leader: currentUser,
+                      target: 10,
+                      focusDuration: 25,
+                      members: [currentUser]
+                  ));
+                  selectedTab = 0;
+                });
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gang berhasil dibuat! Kamu adalah Leader 🎉')));
+              },
+              child: const Text('Buat Gang'),
+            ),
+          ],
         );
       },
     );
@@ -240,41 +230,50 @@ class _GangScreenState extends State<GangScreen> {
   }
 
   void editFocusDuration(GangData gang, StateSetter setSheetState) {
-    int tempDuration = gang.focusDuration;
+    final durationController = TextEditingController(text: gang.focusDuration.toString());
 
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-            builder: (context, setDialogState) {
-              return AlertDialog(
-                title: const Text('Atur Waktu Fokus'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Pilih durasi timer untuk sesi Gang ini:'),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
-                      initialValue: tempDuration,
-                      decoration: const InputDecoration(labelText: 'Durasi (Menit)'),
-                      items: [15, 25, 30, 45, 60, 90].map((value) => DropdownMenuItem(value: value, child: Text('$value menit'))).toList(),
-                      onChanged: (value) { if (value != null) setDialogState(() => tempDuration = value); },
-                    ),
-                  ],
+        return AlertDialog(
+          title: const Text('Atur Waktu Fokus'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Masukkan durasi fokus (dalam menit):'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: durationController,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Durasi (Menit)',
+                  hintText: 'Contoh: 25',
+                  prefixIcon: Icon(Icons.timer),
                 ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Batal')),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() => gang.focusDuration = tempDuration);
-                      setSheetState(() {});
-                      Navigator.pop(dialogContext);
-                    },
-                    child: const Text('Simpan'),
-                  ),
-                ],
-              );
-            }
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Batal')),
+            ElevatedButton(
+              onPressed: () {
+                final newDuration = int.tryParse(durationController.text);
+                // VALIDASI: Minimal 1 menit, Maksimal 1440 menit (24 jam)
+                if (newDuration != null && newDuration > 0 && newDuration <= 1440) {
+                  setState(() => gang.focusDuration = newDuration);
+                  setSheetState(() {});
+                  Navigator.pop(dialogContext);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Masukkan angka antara 1 - 1440 menit.'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
         );
       },
     );
@@ -308,11 +307,8 @@ class _GangScreenState extends State<GangScreen> {
                       Text(gang.name, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.txt)),
                       const SizedBox(height: 8),
                       Text(gang.description, style: TextStyle(color: AppTheme.txtGrey)),
-                      const SizedBox(height: 8),
-                      Text('Tujuan: ${gang.purpose}', style: TextStyle(color: AppTheme.txt)),
                       const SizedBox(height: 16),
 
-                      // --- INFORMASI WAKTU FOKUS & TOMBOL EDIT (LEADER ONLY) ---
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
@@ -330,7 +326,6 @@ class _GangScreenState extends State<GangScreen> {
                             if (isLeader(gang))
                               IconButton(
                                 onPressed: () => editFocusDuration(gang, setSheetState),
-                                // PERBAIKAN: Hapus 'const' karena AppTheme.primary bersifat dinamis
                                 icon: Icon(Icons.edit, color: AppTheme.primary, size: 20),
                                 tooltip: 'Atur Waktu',
                               ),

@@ -1,24 +1,26 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
+import '../services/music_service.dart';
+import '../models/music_model.dart';
 
 class GangTimerScreen extends StatefulWidget {
   final String gangName;
-  final int durationMinutes; // <-- PARAMETER BARU
+  final int durationMinutes;
 
   const GangTimerScreen({
     super.key,
     required this.gangName,
-    required this.durationMinutes, // <-- WAJIB DIISI
+    required this.durationMinutes,
   });
 
   @override
   State<GangTimerScreen> createState() => _GangTimerScreenState();
 }
 
-class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingObserver {
-  // State Timer
+class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   late int totalSeconds;
   late int remainingSeconds;
   bool isRunning = false;
@@ -26,28 +28,43 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
   bool isFailed = false;
   Timer? _timer;
 
-  // State Freeze Timer
   Timer? _freezeTimer;
   int freezeRemainingSeconds = 0;
 
-  // State Stiker & Ekonomi XP
   int userXp = 0;
   final int costFreeze = 20;
   final int costAddTime = 30;
+  final int costGangMusic = 10;
   final int rewardXp = 150;
-  String activeSticker = '';
-  Timer? _stickerTimer;
+
+  String activeStickerImage = '';
+
+  late AnimationController _stickerController;
+  final AudioPlayer _sfxPlayer = AudioPlayer();
+
+  final List<Map<String, String>> stickerList = [
+    {'image': 'assets/images/happy.jpeg', 'sound': 'happy.mp3'},
+    {'image': 'assets/images/sad.jpg', 'sound': 'sad.mp3'},
+    {'image': 'assets/images/laugh.jpeg', 'sound': 'laugh.mp3'},
+    {'image': 'assets/images/frustrated.jpeg', 'sound': 'frustrated.mp3'},
+    {'image': 'assets/images/startled.jpg', 'sound': 'startled.mp3'},
+  ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Inisialisasi waktu berdasarkan durasi dari Leader
     totalSeconds = widget.durationMinutes * 60;
     remainingSeconds = totalSeconds;
 
+    _stickerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
     _loadXp();
+    MusicService.instance.addListener(_onMusicChanged);
   }
 
   @override
@@ -55,8 +72,14 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _freezeTimer?.cancel();
-    _stickerTimer?.cancel();
+    _stickerController.dispose();
+    _sfxPlayer.dispose();
+    MusicService.instance.removeListener(_onMusicChanged);
     super.dispose();
+  }
+
+  void _onMusicChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadXp() async {
@@ -64,7 +87,6 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     if (mounted) setState(() => userXp = xp);
   }
 
-  // --- LOGIKA DETEKSI KELUAR APLIKASI ---
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -84,7 +106,6 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     });
   }
 
-  // --- LOGIKA TIMER UTAMA ---
   void _toggleTimer() {
     if (isFailed) {
       setState(() {
@@ -119,6 +140,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
 
   Future<void> _completeGangSession() async {
     setState(() => isRunning = false);
+    MusicService.instance.stop();
 
     int currentXp = await StorageService.loadXp();
     await StorageService.saveXp(currentXp + rewardXp);
@@ -143,7 +165,6 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     );
   }
 
-  // --- FITUR BAYAR PAKAI XP ---
   Future<bool> _payXp(int amount, String featureName) async {
     if (userXp < amount) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,6 +176,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     final success = await StorageService.deductXp(amount);
     if (success) {
       _loadXp();
+      MusicService.instance.userXp = await StorageService.loadXp();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('-$amount XP. $featureName berhasil digunakan!'), backgroundColor: AppTheme.darkTeal),
       );
@@ -214,19 +236,104 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     }
   }
 
-  void _sendSticker(String emoji) {
-    if (!isRunning) return;
-    setState(() => activeSticker = emoji);
+  void _openGangMusic() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 45, height: 5, decoration: BoxDecoration(color: AppTheme.txtGrey.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(10)))),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Musik Gang', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.txt)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
+                        child: Text('$costGangMusic XP / Lagu', style: TextStyle(color: Colors.orange.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Musik akan didengar oleh semua anggota Gang.', style: TextStyle(color: AppTheme.txtGrey, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: MusicService.instance.playlist.length,
+                      itemBuilder: (context, index) {
+                        final track = MusicService.instance.playlist[index];
+                        final isCurrent = MusicService.instance.currentIndex == index;
 
-    _stickerTimer?.cancel();
-    _stickerTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => activeSticker = '');
-    });
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Container(
+                            width: 45, height: 45,
+                            decoration: BoxDecoration(color: track.color.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
+                            child: Icon(track.icon, color: track.color),
+                          ),
+                          title: Text(track.title, style: TextStyle(color: isCurrent ? AppTheme.primary : AppTheme.txt, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
+                          subtitle: Text(track.artist, style: TextStyle(color: AppTheme.txtGrey, fontSize: 12)),
+                          trailing: isCurrent
+                              ? Icon(Icons.graphic_eq, color: AppTheme.primary)
+                              : Text('Putar', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                          onTap: () async {
+                            if (isCurrent) {
+                              MusicService.instance.togglePlay();
+                              setModalState(() {});
+                              setState(() {});
+                              return;
+                            }
+
+                            bool success = await _payXp(costGangMusic, 'Memutar ${track.title}');
+                            if (success) {
+                              MusicService.instance.selectTrack(index);
+                              setModalState(() {});
+                              setState(() {});
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
+  void _sendSticker(String imagePath, String soundFile) async {
+    try {
+      await _sfxPlayer.stop();
+      await _sfxPlayer.play(AssetSource('sounds/$soundFile'));
+    } catch (e) {
+      debugPrint("Gagal memutar suara SFX: $e");
+    }
+
+    setState(() => activeStickerImage = imagePath);
+    _stickerController.forward(from: 0);
+  }
+
+  // FORMAT WAKTU DIPERBARUI (Mendukung Jam:Menit:Detik)
   String _formatTime(int seconds) {
-    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final h = (seconds ~/ 3600).toString().padLeft(2, '0');
+    final m = ((seconds % 3600) ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
+
+    if (seconds >= 3600) {
+      return '$h:$m:$s';
+    }
     return '$m:$s';
   }
 
@@ -249,6 +356,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                     TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
                     TextButton(
                       onPressed: () {
+                        MusicService.instance.stop();
                         Navigator.pop(context);
                         Navigator.pop(context);
                       },
@@ -258,11 +366,20 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                 ),
               );
             } else {
+              MusicService.instance.stop();
               Navigator.pop(context);
             }
           },
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+                MusicService.instance.isPlaying ? Icons.music_note : Icons.music_off,
+                color: MusicService.instance.isPlaying ? AppTheme.primary : AppTheme.txt
+            ),
+            onPressed: _openGangMusic,
+            tooltip: 'Putar Musik Gang',
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
@@ -305,9 +422,16 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                     ),
                     Column(
                       children: [
-                        Text(
-                          _formatTime(remainingSeconds),
-                          style: TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: AppTheme.txt),
+                        // --- FITTED BOX AGAR TEKS TIDAK KEPOTONG ---
+                        SizedBox(
+                          width: 200,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              _formatTime(remainingSeconds),
+                              style: TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: AppTheme.txt),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -382,7 +506,41 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                       ),
                     ],
                   ),
-                const SizedBox(height: 50),
+
+                if (MusicService.instance.isPlaying || MusicService.instance.currentPosition > Duration.zero)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(MusicService.instance.current.icon, color: AppTheme.primary, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(MusicService.instance.current.title, style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text('Didengar oleh semua anggota', style: TextStyle(fontSize: 10, color: AppTheme.txtGrey)),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            MusicService.instance.togglePlay();
+                            setState((){});
+                          },
+                          icon: Icon(MusicService.instance.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, color: AppTheme.primary, size: 32),
+                        )
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 10),
 
                 if (!isFailed)
                   Container(
@@ -390,13 +548,26 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                     color: AppTheme.card,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: ['👍', '🔥', '💪', '😴', '🍅'].map((emoji) {
+                      children: stickerList.map((sticker) {
                         return GestureDetector(
-                          onTap: () => _sendSticker(emoji),
+                          onTap: () => _sendSticker(sticker['image']!, sticker['sound']!),
                           child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: AppTheme.bg, shape: BoxShape.circle),
-                            child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                            width: 55,
+                            height: 55,
+                            decoration: BoxDecoration(
+                                color: AppTheme.bg,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppTheme.border, width: 1.5)
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                sticker['image']!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Center(child: Icon(Icons.broken_image, size: 24, color: Colors.grey));
+                                },
+                              ),
+                            ),
                           ),
                         );
                       }).toList(),
@@ -404,20 +575,49 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                   ),
               ],
             ),
-            if (activeSticker.isNotEmpty)
+
+            if (activeStickerImage.isNotEmpty)
               Positioned(
-                bottom: 100,
+                bottom: 80,
                 left: 0,
                 right: 0,
-                child: Center(
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeOutBack,
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: Text(activeSticker, style: const TextStyle(fontSize: 80)),
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _stickerController,
+                    builder: (context, child) {
+                      final value = _stickerController.value;
+
+                      double scale = 1.0;
+                      if (value < 0.2) {
+                        scale = Curves.easeOutBack.transform(value / 0.2);
+                      }
+
+                      double translateY = -120 * value;
+
+                      double opacity = 1.0;
+                      if (value > 0.7) {
+                        opacity = 1.0 - ((value - 0.7) / 0.3);
+                      }
+
+                      return Transform.translate(
+                        offset: Offset(0, translateY),
+                        child: Transform.scale(
+                          scale: scale,
+                          child: Opacity(
+                            opacity: opacity.clamp(0.0, 1.0),
+                            child: Center(
+                              child: Image.asset(
+                                activeStickerImage,
+                                width: 150,
+                                height: 150,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(Icons.image_not_supported, size: 100, color: Colors.grey);
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
                       );
                     },
                   ),

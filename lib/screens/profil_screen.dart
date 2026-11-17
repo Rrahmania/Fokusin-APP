@@ -7,7 +7,6 @@ import 'login_screen.dart';
 import 'shop_screen.dart';
 import 'statistics_screen.dart';
 
-// PERHATIKAN: Nama class ini harus "ProfilScreen"
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
 
@@ -30,6 +29,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   bool hasFreeze = false;
   int themeColorIndex = 0;
+  List<int> ownedThemes = [0];
+  final int themePrice = 300;
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       final lastVal = await StorageService.loadLastStreakValue();
       final freeze = await StorageService.loadStreakFreeze();
       final colorIdx = await StorageService.loadThemeColorIndex();
+      final owned = await StorageService.loadOwnedThemes();
 
       if (!mounted) return;
       setState(() {
@@ -77,6 +79,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         lastStreakValue = lastVal;
         hasFreeze = freeze;
         themeColorIndex = colorIdx;
+        ownedThemes = owned;
       });
     } catch (err) {
       debugPrint("ERROR PROFIL: $err");
@@ -123,6 +126,53 @@ class _ProfilScreenState extends State<ProfilScreen> {
     await StorageService.saveThemeColorIndex(index);
     AppTheme.setThemeColorIndex(index);
     _loadData();
+  }
+
+  Future<void> _buyOrEquipTheme(int index) async {
+    if (ownedThemes.contains(index)) {
+      _changeThemeColor(index);
+      return;
+    }
+
+    if (xp < themePrice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('XP kamu tidak cukup! Butuh $themePrice XP untuk membeli tema ini.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Beli Warna Tema?'),
+        content: Text('Gunakan $themePrice XP untuk membeli tema ${AppTheme.colorThemes[index]['name']}? Tema ini akan menjadi milikmu selamanya.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 16)),
+            child: const Text('Beli', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final newOwned = [...ownedThemes, index];
+    final newXp = xp - themePrice;
+
+    await StorageService.saveXp(newXp);
+    await StorageService.saveOwnedThemes(newOwned);
+    await StorageService.saveThemeColorIndex(index);
+    AppTheme.setThemeColorIndex(index);
+
+    if (!mounted) return;
+    _loadData();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Tema ${AppTheme.colorThemes[index]['name']} berhasil dibeli! 🎉'), backgroundColor: AppTheme.darkTeal),
+    );
   }
 
   Future<void> _restoreStreak() async {
@@ -513,47 +563,76 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.palette, color: xp >= 500 ? AppTheme.primary : Colors.grey, size: 28),
+                        Icon(Icons.palette, color: AppTheme.primary, size: 28),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Warna Tema Premium', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt)),
-                              Text(xp >= 500 ? 'Pilih warna favoritmu!' : 'Butuh 500 XP untuk membuka', style: TextStyle(fontSize: 12, color: AppTheme.txtGrey)),
+                              Text('Pilih warna favoritmu!', style: TextStyle(fontSize: 12, color: AppTheme.txtGrey)),
                             ],
                           ),
                         ),
-                        if (xp < 500) const Icon(Icons.lock, color: Colors.grey),
                       ],
                     ),
-                    if (xp >= 500) ...[
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 50,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: AppTheme.colorThemes.length,
-                          itemBuilder: (context, index) {
-                            final color = AppTheme.colorThemes[index]['primary'] as Color;
-                            final isSelected = themeColorIndex == index;
-                            return GestureDetector(
-                              onTap: () => _changeThemeColor(index),
-                              child: Container(
-                                width: 50,
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: isSelected ? AppTheme.txt : Colors.transparent, width: 3),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 70,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: AppTheme.colorThemes.length,
+                        itemBuilder: (context, index) {
+                          final color = AppTheme.colorThemes[index]['primary'] as Color;
+                          final isSelected = themeColorIndex == index;
+                          final isOwned = ownedThemes.contains(index);
+
+                          return GestureDetector(
+                            onTap: () => _buyOrEquipTheme(index),
+                            child: Container(
+                              width: 60,
+                              margin: const EdgeInsets.only(right: 16),
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected ? AppTheme.txt : Colors.transparent,
+                                  width: 3,
                                 ),
-                                child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
                               ),
-                            );
-                          },
-                        ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (isSelected)
+                                    const Icon(Icons.check, color: Colors.white),
+                                  if (!isOwned)
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.4),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Center(
+                                        child: Icon(Icons.lock, color: Colors.white, size: 24),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    ]
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: AppTheme.txtGrey),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Harga per tema: $themePrice XP (Sekali Beli)',
+                          style: TextStyle(fontSize: 12, color: AppTheme.txtGrey),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

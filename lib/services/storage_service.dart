@@ -21,6 +21,7 @@ class StorageService {
   static const String _keyCurrentUserEmail = 'current_user_email';
   static const String _keyOwnedFrames = 'owned_frames';
   static const String _keyEquippedFrame = 'equipped_frame';
+  static const String _keyOwnedThemes = 'owned_theme_colors'; // BARU
 
   static const String _keyStreakFreeze = 'streak_freeze_active';
   static const String _keyThemeColor = 'theme_color_index';
@@ -187,7 +188,6 @@ class StorageService {
     return prefs.getInt(_keyXp) ?? 0;
   }
 
-  // --- FUNGSI BARU UNTUK MEMOTONG XP (FITUR GANG TIMER) ---
   static Future<bool> deductXp(int amount) async {
     final prefs = await SharedPreferences.getInstance();
     int currentXp = prefs.getInt(_keyXp) ?? 0;
@@ -197,7 +197,6 @@ class StorageService {
     }
     return false;
   }
-  // --------------------------------------------------------
 
   static Future<void> saveCompletedChallenges(List<String> ids) async {
     final prefs = await SharedPreferences.getInstance();
@@ -261,6 +260,20 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_keyThemeColor) ?? 0;
   }
+
+  // --- FUNGSI BARU UNTUK TEMA WARNA ---
+  static Future<List<int>> loadOwnedThemes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyOwnedThemes);
+    if (list == null || list.isEmpty) return [0];
+    return list.map((e) => int.tryParse(e) ?? 0).toList();
+  }
+
+  static Future<void> saveOwnedThemes(List<int> themes) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_keyOwnedThemes, themes.map((e) => e.toString()).toList());
+  }
+  // -------------------------------------
 
   static Future<void> checkStreakStatus() async {
     final prefs = await SharedPreferences.getInstance();
