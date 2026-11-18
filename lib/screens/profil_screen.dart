@@ -6,6 +6,7 @@ import '../widgets/framed_avatar.dart';
 import 'login_screen.dart';
 import 'shop_screen.dart';
 import 'statistics_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 // PERHATIKAN: Nama class ini harus "ProfilScreen"
 class ProfilScreen extends StatefulWidget {
@@ -30,6 +31,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   bool hasFreeze = false;
   int themeColorIndex = 0;
+  bool isAdminUser = false;
 
   @override
   void initState() {
@@ -62,6 +64,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       final lastVal = await StorageService.loadLastStreakValue();
       final freeze = await StorageService.loadStreakFreeze();
       final colorIdx = await StorageService.loadThemeColorIndex();
+      final admin = await StorageService.isAdmin();
 
       if (!mounted) return;
       setState(() {
@@ -77,6 +80,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         lastStreakValue = lastVal;
         hasFreeze = freeze;
         themeColorIndex = colorIdx;
+        isAdminUser = admin;
       });
     } catch (err) {
       debugPrint("ERROR PROFIL: $err");
@@ -100,6 +104,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   Future<void> _openStatistics() async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const StatisticsScreen()));
+    _loadData();
+  }
+
+  Future<void> _openAdminDashboard() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
     _loadData();
   }
 
@@ -561,6 +570,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
               Align(alignment: Alignment.centerLeft, child: Text('Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt))),
               const SizedBox(height: 12),
+              if (isAdminUser)
+                _TileButton(icon: Icons.admin_panel_settings, title: 'Admin Dashboard Panel', onTap: _openAdminDashboard),
               _SwitchTile(icon: darkMode ? Icons.dark_mode : Icons.light_mode, title: 'Dark Mode', value: darkMode, onChanged: _toggleDarkMode),
               _SwitchTile(icon: Icons.lock_outline, title: 'Kunci Aplikasi', value: lockApp, onChanged: _toggleLockApp),
               _TileButton(icon: Icons.auto_awesome, title: 'Pengaturan Gemini AI', onTap: _showApiKeySettings),

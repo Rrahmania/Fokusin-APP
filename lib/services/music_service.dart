@@ -65,8 +65,17 @@ class MusicService extends ChangeNotifier {
     });
   }
 
+  Future<void> reloadPlaylist() async {
+    final customTracks = await StorageService.loadCustomMusicTracks();
+    playlist = [...defaultPlaylist, ...customTracks];
+    notifyListeners();
+  }
+
   Future<void> _loadSaved() async {
     userXp = await StorageService.loadXp();
+    final customTracks = await StorageService.loadCustomMusicTracks();
+    playlist = [...defaultPlaylist, ...customTracks];
+
     final saved = await StorageService.loadSelectedMusic();
     final idx = playlist.indexWhere((t) => t.title == saved);
     if (idx >= 0) {
@@ -82,22 +91,28 @@ class MusicService extends ChangeNotifier {
     totalDuration = Duration(seconds: current.durationSeconds);
     notifyListeners();
 
-    if (autoPlay && userXp >= current.requiredXp) {
+    final isAdmin = await StorageService.isAdmin();
+    if (autoPlay && (isAdmin || userXp >= current.requiredXp)) {
       playAudio();
     }
   }
 
   Future<void> playAudio() async {
     try {
-      await _audioPlayer.play(AssetSource(current.filePath));
+      if (current.filePath.startsWith('http://') || current.filePath.startsWith('https://')) {
+        await _audioPlayer.play(UrlSource(current.filePath));
+      } else {
+        await _audioPlayer.play(AssetSource(current.filePath));
+      }
       StorageService.saveSelectedMusic(current.title);
     } catch (e) {
       debugPrint("ERROR PUTAR AUDIO: $e");
     }
   }
 
-  void togglePlay() {
-    if (userXp < current.requiredXp) return;
+  void togglePlay() async {
+    final isAdmin = await StorageService.isAdmin();
+    if (!isAdmin && userXp < current.requiredXp) return;
 
     if (isPlaying) {
       _audioPlayer.pause();

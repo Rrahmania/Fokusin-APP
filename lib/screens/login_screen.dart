@@ -48,6 +48,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => isLoading = false);
 
+    if (name == 'BLOCKED') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Akun Anda telah diblokir oleh Admin 🚫'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     if (name == null) {
       final emailExists = await StorageService.isEmailRegistered(emailController.text.trim());
       if (!mounted) return;

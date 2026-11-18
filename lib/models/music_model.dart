@@ -20,6 +20,35 @@ class MusicTrack {
     required this.filePath,
     this.requiredXp = 0,
   });
+
+  String toStorageString() {
+    return '$title|$artist|$duration|$durationSeconds|${color.toARGB32()}|$requiredXp|$filePath';
+  }
+
+  static MusicTrack fromStorageString(String str) {
+    final parts = str.split('|');
+    if (parts.length >= 7) {
+      return MusicTrack(
+        title: parts[0],
+        artist: parts[1],
+        duration: parts[2],
+        durationSeconds: int.tryParse(parts[3]) ?? 180,
+        color: Color(int.tryParse(parts[4]) ?? 0xFF4FC3F7),
+        icon: Icons.music_note,
+        requiredXp: int.tryParse(parts[5]) ?? 0,
+        filePath: parts[6],
+      );
+    }
+    return MusicTrack(
+      title: parts.isNotEmpty ? parts[0] : 'Custom Track',
+      artist: parts.length > 1 ? parts[1] : 'Admin',
+      duration: '3:00',
+      durationSeconds: 180,
+      icon: Icons.music_note,
+      color: const Color(0xFF4FC3F7),
+      filePath: 'music/piano.mp3',
+    );
+  }
 }
 
 final List<MusicTrack> defaultPlaylist = [

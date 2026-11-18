@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/music_model.dart';
 
 class StorageService {
   static const String _keyCustomMinutes = 'custom_minutes';
@@ -25,8 +26,43 @@ class StorageService {
   static const String _keyStreakFreeze = 'streak_freeze_active';
   static const String _keyThemeColor = 'theme_color_index';
   static const String _keyApiKey = 'gemini_api_key';
+  static const String _keyBlockedUsers = 'blocked_users';
+  static const String _keyCustomMusicTracks = 'custom_music_tracks';
+
+  static Future<bool> isUserBlocked(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyBlockedUsers) ?? [];
+    return list.any((e) => e.toLowerCase() == email.toLowerCase());
+  }
+
+  static Future<void> blockUser(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyBlockedUsers) ?? [];
+    if (!list.any((e) => e.toLowerCase() == email.toLowerCase())) {
+      list.add(email);
+      await prefs.setStringList(_keyBlockedUsers, list);
+    }
+  }
+
+  static Future<void> unblockUser(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyBlockedUsers) ?? [];
+    list.removeWhere((e) => e.toLowerCase() == email.toLowerCase());
+    await prefs.setStringList(_keyBlockedUsers, list);
+  }
+
+  static Future<void> ensureDefaultAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyRegisteredUsers) ?? [];
+    bool hasAdmin = list.any((u) => u.split('|').length >= 2 && u.split('|')[1].toLowerCase() == 'admin@fokusin.app');
+    if (!hasAdmin) {
+      list.add('Admin Fokusin|admin@fokusin.app|admin123|admin');
+      await prefs.setStringList(_keyRegisteredUsers, list);
+    }
+  }
 
   static Future<bool> registerUser({required String name, required String email, required String password}) async {
+    await ensureDefaultAdmin();
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList(_keyRegisteredUsers) ?? [];
     for (final u in list) {
@@ -39,6 +75,10 @@ class StorageService {
   }
 
   static Future<String?> loginUser({required String email, required String password}) async {
+    await ensureDefaultAdmin();
+    if (await isUserBlocked(email)) {
+      return 'BLOCKED';
+    }
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList(_keyRegisteredUsers) ?? [];
     for (final u in list) {
@@ -51,6 +91,59 @@ class StorageService {
       }
     }
     return null;
+  }
+
+  static Future<bool> isAdmin() async {
+    final email = await getCurrentUserEmail();
+    if (email.toLowerCase() == 'admin@fokusin.app' || email.toLowerCase().contains('admin')) {
+      return true;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyRegisteredUsers) ?? [];
+    for (final u in list) {
+      final parts = u.split('|');
+      if (parts.length >= 4 && parts[1].toLowerCase() == email.toLowerCase() && parts[3] == 'admin') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static Future<List<Map<String, dynamic>>> getAllRegisteredUsers() async {
+    await ensureDefaultAdmin();
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyRegisteredUsers) ?? [];
+    final blockedList = prefs.getStringList(_keyBlockedUsers) ?? [];
+    final result = <Map<String, dynamic>>[];
+    for (final item in list) {
+      final parts = item.split('|');
+      if (parts.length >= 3) {
+        final email = parts[1];
+        final isBlocked = blockedList.any((b) => b.toLowerCase() == email.toLowerCase());
+        result.add({
+          'name': parts[0],
+          'email': email,
+          'role': parts.length >= 4 ? parts[3] : (email.toLowerCase().contains('admin') ? 'admin' : 'user'),
+          'isBlocked': isBlocked,
+        });
+      }
+    }
+    return result;
+  }
+
+  static Future<bool> deleteRegisteredUser(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyRegisteredUsers) ?? [];
+    int initialLen = list.length;
+    list.removeWhere((item) {
+      final parts = item.split('|');
+      return parts.length >= 2 && parts[1].toLowerCase() == email.toLowerCase();
+    });
+    if (list.length != initialLen) {
+      await prefs.setStringList(_keyRegisteredUsers, list);
+      return true;
+    }
+    return false;
   }
 
   static Future<bool> isEmailRegistered(String email) async {
@@ -183,12 +276,14 @@ class StorageService {
   }
 
   static Future<int> loadXp() async {
+    if (await isAdmin()) return 999999;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_keyXp) ?? 0;
   }
 
-  // --- FUNGSI BARU UNTUK MEMOTONG XP (FITUR GANG TIMER) ---
+  // --- FUNGSI UNTUK MEMOTONG XP (ADMIN GRATIS BYPASS) ---
   static Future<bool> deductXp(int amount) async {
+    if (await isAdmin()) return true; // Admin gratis tanpa memotong XP
     final prefs = await SharedPreferences.getInstance();
     int currentXp = prefs.getInt(_keyXp) ?? 0;
     if (currentXp >= amount) {
@@ -196,6 +291,26 @@ class StorageService {
       return true;
     }
     return false;
+  }
+
+  static Future<void> saveCustomMusicTrack(MusicTrack track) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyCustomMusicTracks) ?? [];
+    list.add(track.toStorageString());
+    await prefs.setStringList(_keyCustomMusicTracks, list);
+  }
+
+  static Future<List<MusicTrack>> loadCustomMusicTracks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyCustomMusicTracks) ?? [];
+    return list.map((str) => MusicTrack.fromStorageString(str)).toList();
+  }
+
+  static Future<void> deleteCustomMusicTrack(String title) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keyCustomMusicTracks) ?? [];
+    list.removeWhere((str) => str.split('|').first.toLowerCase() == title.toLowerCase());
+    await prefs.setStringList(_keyCustomMusicTracks, list);
   }
   // --------------------------------------------------------
 
