@@ -86,9 +86,18 @@ class MusicService extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  Future<void> reloadPlaylist() async {
+    final customTracks = await StorageService.loadCustomMusicTracks();
+    playlist = [...defaultPlaylist, ...customTracks];
+    notifyListeners();
+  }
+
   Future<void> _loadSaved() async {
     userXp = await StorageService.loadXp();
     ownedTracks = await StorageService.loadOwnedMusic();
+    final customTracks = await StorageService.loadCustomMusicTracks();
+    playlist = [...defaultPlaylist, ...customTracks];
+
     final saved = await StorageService.loadSelectedMusic();
     final idx = playlist.indexWhere((t) => t.title == saved);
     if (idx >= 0) {

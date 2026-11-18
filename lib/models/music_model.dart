@@ -21,8 +21,10 @@ class MusicTrack {
     this.price = 0, // Default gratis
   });
 
+  int get requiredXp => price;
+
   String toStorageString() {
-    return '$title|$artist|$duration|$durationSeconds|${color.toARGB32()}|$requiredXp|$filePath';
+    return '$title|$artist|$duration|$durationSeconds|${color.toARGB32()}|$price|$filePath';
   }
 
   static MusicTrack fromStorageString(String str) {
@@ -35,7 +37,7 @@ class MusicTrack {
         durationSeconds: int.tryParse(parts[3]) ?? 180,
         color: Color(int.tryParse(parts[4]) ?? 0xFF4FC3F7),
         icon: Icons.music_note,
-        requiredXp: int.tryParse(parts[5]) ?? 0,
+        price: int.tryParse(parts[5]) ?? 0,
         filePath: parts[6],
       );
     }
@@ -47,6 +49,7 @@ class MusicTrack {
       icon: Icons.music_note,
       color: const Color(0xFF4FC3F7),
       filePath: 'music/piano.mp3',
+      price: 0,
     );
   }
 }

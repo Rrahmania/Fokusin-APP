@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../widgets/bottom_nav.dart';
 import 'register_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,10 +65,18 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final isAdmin = await StorageService.isAdmin();
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Welcome, $name! 👋'), backgroundColor: AppTheme.darkTeal),
+      SnackBar(content: Text(isAdmin ? 'Selamat Datang di Panel Admin! 👑' : 'Welcome, $name! 👋'), backgroundColor: AppTheme.darkTeal),
     );
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomNav()));
+
+    if (isAdmin) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+    } else {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomNav()));
+    }
   }
 
   void loginWithGoogle() async {
