@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
+import '../services/challenge_service.dart';
 import '../widgets/music_card.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/ai_recommendation.dart';
@@ -22,10 +23,29 @@ class _HomeScreenState extends State<HomeScreen> {
   int lastStreakValue = 0;
   final int restoreStreakCost = 50;
 
+  String challengeTitle = 'Selesaikan 3 Pomodoro';
+  int challengeReward = 50;
+  int challengeCurrent = 0;
+  int challengeTarget = 3;
+  bool challengeCompleted = false;
+
   @override
   void initState() {
     super.initState();
     _loadUser();
+    BottomNav.navNotifier.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    BottomNav.navNotifier.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (BottomNav.navNotifier.value == 0) {
+      _loadUser();
+    }
   }
 
   Future<void> _loadUser() async {
@@ -38,6 +58,20 @@ class _HomeScreenState extends State<HomeScreen> {
       final broken = await StorageService.isStreakBroken();
       final lastVal = await StorageService.loadLastStreakValue();
 
+      final progressMap = await ChallengeService.getProgressMap();
+      final challengeResult = await ChallengeService.evaluate();
+      final completedIds = challengeResult.completedIds;
+
+      final activeChallenge = challengeList.firstWhere(
+            (c) => !completedIds.contains(c.id),
+        orElse: () => challengeList.first,
+      );
+
+      final progress = progressMap[activeChallenge.id];
+      final current = progress?['current'] ?? 0;
+      final target = progress?['target'] ?? 1;
+      final isCompleted = completedIds.contains(activeChallenge.id);
+
       if (!mounted) return;
       setState(() {
         userName = name;
@@ -47,6 +81,12 @@ class _HomeScreenState extends State<HomeScreen> {
         xp = userXp;
         streakBroken = broken;
         lastStreakValue = lastVal;
+
+        challengeTitle = activeChallenge.description;
+        challengeReward = activeChallenge.reward;
+        challengeCurrent = current;
+        challengeTarget = target;
+        challengeCompleted = isCompleted;
       });
     } catch (err) {
       debugPrint("ERROR HOME: $err");
@@ -109,7 +149,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // HEADER
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       width: 50,
                       height: 50,
-                      decoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle), // Hapus const
+                      decoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
                       child: Center(child: Text(userInitial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
                     ),
                   ),
@@ -135,7 +174,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 32),
 
-              // BANNER STREAK PUTUS
               if (streakBroken && lastStreakValue > 0) ...[
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -164,7 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 24),
               ],
 
-              // BENTO GRID
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -249,18 +286,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 32),
 
-              // AI RECOMMENDATION
               const AiRecommendation(),
               const SizedBox(height: 32),
 
-              // MUSIK
               Text("Soundscape", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
               const SizedBox(height: 12),
               const MusicCard(),
 
               const SizedBox(height: 32),
 
-              // CHALLENGE
               Text("Tantangan", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.txt)),
               const SizedBox(height: 12),
               InkWell(
@@ -273,21 +307,39 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.15), shape: BoxShape.circle),
-                        child: Icon(Icons.emoji_events, color: AppTheme.accent), // Hapus const
+                        decoration: BoxDecoration(
+                          color: challengeCompleted ? Colors.green.withValues(alpha: 0.15) : AppTheme.accent.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          challengeCompleted ? Icons.check_circle : Icons.emoji_events,
+                          color: challengeCompleted ? Colors.green : AppTheme.accent,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Selesaikan 3 Pomodoro', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt, fontSize: 14)),
+                            Text(
+                              challengeTitle,
+                              style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                             const SizedBox(height: 4),
-                            Text('Hadiah: +50 XP', style: TextStyle(color: AppTheme.txtGrey, fontSize: 12)),
+                            Text('Hadiah: +$challengeReward XP', style: TextStyle(color: AppTheme.txtGrey, fontSize: 12)),
                           ],
                         ),
                       ),
-                      Text('2/3', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 16)),
+                      Text(
+                        challengeCompleted ? 'Selesai' : '$challengeCurrent/$challengeTarget',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: challengeCompleted ? Colors.green : (challengeCurrent == 0 ? AppTheme.txtGrey : AppTheme.primary),
+                          fontSize: 16,
+                        ),
+                      ),
                     ],
                   ),
                 ),

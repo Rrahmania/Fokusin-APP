@@ -13,7 +13,6 @@ void main() async {
 
   AppTheme.setDarkMode(isDark);
   AppTheme.setThemeColorIndex(colorIndex);
-  MusicService.instance.init();
 
   runApp(const FokusinApp());
 }
@@ -29,8 +28,18 @@ class _FokusinAppState extends State<FokusinApp> {
   @override
   void initState() {
     super.initState();
+
     AppTheme.themeNotifier.addListener(_refresh);
     AppTheme.colorNotifier.addListener(_refresh);
+
+    // --- PERBAIKAN: Tunda inisialisasi musik sampai UI selesai dimuat ---
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        MusicService.instance.init();
+      } catch (e) {
+        debugPrint("Gagal inisialisasi musik: $e");
+      }
+    });
   }
 
   @override

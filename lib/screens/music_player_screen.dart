@@ -10,7 +10,6 @@ class MusicPlayerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Jika pertama kali dibuka dengan lagu tertentu, pilih lagu tersebut
     if (initialTrack != null && MusicService.instance.current.title != initialTrack!.title) {
       final idx = MusicService.instance.playlist.indexWhere((t) => t.title == initialTrack!.title);
       if (idx >= 0) {
@@ -18,13 +17,14 @@ class MusicPlayerScreen extends StatelessWidget {
       }
     }
 
-    // ListenableBuilder memastikan UI terupdate saat musik berubah state
     return ListenableBuilder(
         listenable: MusicService.instance,
         builder: (context, _) {
           final service = MusicService.instance;
           final current = service.current;
-          final isLocked = service.userXp < current.requiredXp;
+
+          // CEK APAKAH TERKUNCI
+          final isLocked = current.price > 0 && !service.isTrackOwned(current.title);
 
           final totalSecs = service.totalDuration.inSeconds > 0
               ? service.totalDuration.inSeconds
@@ -59,7 +59,7 @@ class MusicPlayerScreen extends StatelessWidget {
                             children: [
                               const Icon(Icons.lock, color: Colors.white, size: 50),
                               const SizedBox(height: 8),
-                              Text('Butuh ${current.requiredXp} XP', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              Text('Butuh ${current.price} XP', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -98,19 +98,48 @@ class MusicPlayerScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
+
+                  // TOMBOL PLAY / BELI
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(iconSize: 40, onPressed: service.prev, icon: Icon(Icons.skip_previous, color: AppTheme.txt)),
                       const SizedBox(width: 15),
-                      Container(
-                        decoration: BoxDecoration(color: isLocked ? Colors.grey : current.color, shape: BoxShape.circle),
-                        child: IconButton(
-                          iconSize: 45,
-                          onPressed: isLocked ? null : service.togglePlay,
-                          icon: Icon(isLocked ? Icons.lock : (service.isPlaying ? Icons.pause : Icons.play_arrow), color: Colors.white),
+                      if (isLocked)
+                        ElevatedButton(
+                          onPressed: () async {
+                            bool success = await service.purchaseTrack(service.currentIndex);
+                            if (success) {
+                              service.togglePlay();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Musik berhasil dibeli! 🎉'), backgroundColor: Colors.green),
+                                );
+                              }
+                            } else {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('XP tidak cukup untuk membeli musik ini.'), backgroundColor: Colors.red),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          ),
+                          child: Text('Beli - ${current.price} XP', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        )
+                      else
+                        Container(
+                          decoration: BoxDecoration(color: current.color, shape: BoxShape.circle),
+                          child: IconButton(
+                            iconSize: 45,
+                            onPressed: service.togglePlay,
+                            icon: Icon(service.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 15),
                       IconButton(iconSize: 40, onPressed: service.next, icon: Icon(Icons.skip_next, color: AppTheme.txt)),
                     ],
@@ -132,10 +161,15 @@ class MusicPlayerScreen extends StatelessWidget {
                       itemBuilder: (context, i) {
                         final track = service.playlist[i];
                         final isCurrent = i == service.currentIndex;
-                        final trackLocked = service.userXp < track.requiredXp;
+                        final trackLocked = track.price > 0 && !service.isTrackOwned(track.title);
 
                         return GestureDetector(
-                          onTap: () => service.selectTrack(i),
+                          onTap: () {
+                            service.selectTrack(i);
+                            if (trackLocked) {
+                              service.stop();
+                            }
+                          },
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(14),
@@ -173,7 +207,7 @@ class MusicPlayerScreen extends StatelessWidget {
                                   ),
                                 ),
                                 if (trackLocked)
-                                  const Icon(Icons.lock, size: 18, color: Colors.grey)
+                                  Text('${track.price} XP', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange))
                                 else if (isCurrent && service.isPlaying)
                                   Icon(Icons.graphic_eq, color: current.color, size: 18),
                               ],
