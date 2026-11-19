@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 import 'services/timer_service.dart';
@@ -7,6 +8,8 @@ import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('isDarkMode') ?? false;
   final colorIndex = prefs.getInt('theme_color_index') ?? 0;
@@ -32,7 +35,6 @@ class _FokusinAppState extends State<FokusinApp> {
     AppTheme.themeNotifier.addListener(_refresh);
     AppTheme.colorNotifier.addListener(_refresh);
 
-    // --- PERBAIKAN: Tunda inisialisasi musik sampai UI selesai dimuat ---
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         MusicService.instance.init();

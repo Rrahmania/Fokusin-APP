@@ -262,95 +262,107 @@ class _TimerScreenState extends State<TimerScreen> {
           IconButton(icon: Icon(Icons.more_horiz, color: AppTheme.txt), onPressed: _openSettings),
         ],
       ),
+      // BUNGKUS DENGAN LAYOUT BUILDER & SCROLL VIEW AGAR ANTI OVERFLOW
       body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(flex: 1),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: circleSize,
-                  height: circleSize,
-                  child: CircularProgressIndicator(
-                    value: _timer.remainingSeconds / (_timer.selectedMinutes * 60 + _timer.selectedSeconds),
-                    strokeWidth: 10,
-                    backgroundColor: AppTheme.border,
-                    color: AppTheme.primary,
-                    strokeCap: StrokeCap.round,
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_timer.timerText, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w300, color: AppTheme.txt, letterSpacing: -2)),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-                      child: Text(_timer.selectedActivity.toUpperCase(), style: TextStyle(color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const Spacer(flex: 1),
-            SizedBox(
-              height: 50,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: activities.length,
-                itemBuilder: (context, index) {
-                  final name = activities[index]['name'] as String;
-                  final selected = _timer.selectedActivity == name;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: GestureDetector(
-                      onTap: isRunning ? null : () => _timer.setActivity(name),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        decoration: BoxDecoration(
-                          color: selected ? AppTheme.primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(25),
-                          border: Border.all(color: selected ? AppTheme.primary : AppTheme.border, width: 1.5),
-                        ),
-                        child: Center(
-                          child: Text(name, style: TextStyle(color: selected ? Colors.white : AppTheme.txtGrey, fontWeight: selected ? FontWeight.bold : FontWeight.w500)),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 1),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: circleSize,
+                            height: circleSize,
+                            child: CircularProgressIndicator(
+                              value: _timer.remainingSeconds / (_timer.selectedMinutes * 60 + _timer.selectedSeconds),
+                              strokeWidth: 10,
+                              backgroundColor: AppTheme.border,
+                              color: AppTheme.primary,
+                              strokeCap: StrokeCap.round,
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(_timer.timerText, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w300, color: AppTheme.txt, letterSpacing: -2)),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                                child: Text(_timer.selectedActivity.toUpperCase(), style: TextStyle(color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const Spacer(flex: 1),
+                      SizedBox(
+                        height: 50,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          itemCount: activities.length,
+                          itemBuilder: (context, index) {
+                            final name = activities[index]['name'] as String;
+                            final selected = _timer.selectedActivity == name;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: GestureDetector(
+                                onTap: isRunning ? null : () => _timer.setActivity(name),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                  decoration: BoxDecoration(
+                                    color: selected ? AppTheme.primary : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(25),
+                                    border: Border.all(color: selected ? AppTheme.primary : AppTheme.border, width: 1.5),
+                                  ),
+                                  child: Center(
+                                    child: Text(name, style: TextStyle(color: selected ? Colors.white : AppTheme.txtGrey, fontWeight: selected ? FontWeight.bold : FontWeight.w500)),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isRunning)
-                  IconButton(onPressed: () => _timer.reset(), icon: Icon(Icons.stop_rounded, color: Colors.red.shade300, size: 40)),
-                const SizedBox(width: 24),
-                GestureDetector(
-                  onTap: _timer.toggle,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))],
-                    ),
-                    child: Icon(isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (isRunning)
+                            IconButton(onPressed: () => _timer.reset(), icon: Icon(Icons.stop_rounded, color: Colors.red.shade300, size: 40)),
+                          const SizedBox(width: 24),
+                          GestureDetector(
+                            onTap: _timer.toggle,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))],
+                              ),
+                              child: Icon(isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          if (!isRunning)
+                            IconButton(onPressed: _openCustomTimeDialog, icon: Icon(Icons.add_rounded, color: AppTheme.txt, size: 40)),
+                        ],
+                      ),
+                      const SizedBox(height: 60),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 24),
-                if (!isRunning)
-                  IconButton(onPressed: _openCustomTimeDialog, icon: Icon(Icons.add_rounded, color: AppTheme.txt, size: 40)),
-              ],
-            ),
-            const SizedBox(height: 60),
-          ],
+              ),
+            );
+          },
         ),
       ),
     );

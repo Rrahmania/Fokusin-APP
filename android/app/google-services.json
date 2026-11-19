@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "883998404645",
+    "project_id": "fokusin-app-32b2a",
+    "storage_bucket": "fokusin-app-32b2a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:883998404645:android:ed3c7f00ea71cc526f8fcc",
+        "android_client_info": {
+          "package_name": "com.example.fokusinaja"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2N_-xXJQufZG2qwBMpBMw6gID8VXQLPo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

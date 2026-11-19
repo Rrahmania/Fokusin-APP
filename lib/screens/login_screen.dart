@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // TAMBAHAN
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../widgets/bottom_nav.dart';
@@ -19,6 +20,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool hidePassword = true;
   bool isLoading = false;
 
+  // Inisialisasi Firebase Auth
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   @override
   void dispose() {
     emailController.dispose();
@@ -30,71 +34,83 @@ class _LoginScreenState extends State<LoginScreen> {
     if (value == null || value.trim().isEmpty) return 'Email cannot be empty.';
     final email = value.trim();
     final regex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    if (!regex.hasMatch(email)) return 'Couldn\'t find this account';
+    if (!regex.hasMatch(email)) return 'Format email tidak valid';
     return null;
   }
 
   String? validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Password tidak boleh kosong';
-    if (value.length < 6) return 'Password must be at least 6 characters long.';
+    if (value.length < 6) return 'Password minimal 6 karakter.';
     return null;
   }
 
   void login() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 500));
 
-    final name = await StorageService.loginUser(email: emailController.text.trim(), password: passwordController.text);
-    if (!mounted) return;
-    setState(() => isLoading = false);
-
-    if (name == 'BLOCKED') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Akun Anda telah diblokir oleh Admin 🚫'), backgroundColor: Colors.red),
+    try {
+      // 1. Login menggunakan Firebase Authentication
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text,
       );
-      return;
-    }
 
-    if (name == null) {
-      final emailExists = await StorageService.isEmailRegistered(emailController.text.trim());
+      // 2. Ambil nama user dari Firebase
+      String name = userCredential.user?.displayName ?? 'User';
+
+      // 3. Update local storage agar UI HomeScreen kamu kebaca
+      await StorageService.setCurrentUser(
+          name: name,
+          email: emailController.text.trim()
+      );
+
       if (!mounted) return;
+      setState(() => isLoading = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(emailExists ? 'Wrong password' : 'Couldn\'t find this account'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Welcome, $name! 👋'), backgroundColor: AppTheme.darkTeal),
       );
-      return;
-    }
 
-    final isAdmin = await StorageService.isAdmin();
-    if (!mounted) return;
+      // 4. Cek apakah admin (kamu bisa buat logika khusus email admin di sini)
+      if (emailController.text.trim().toLowerCase() == 'admin@fokusin.app') {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomNav()));
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(isAdmin ? 'Selamat Datang di Panel Admin! 👑' : 'Welcome, $name! 👋'), backgroundColor: AppTheme.darkTeal),
-    );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
 
-    if (isAdmin) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
-    } else {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomNav()));
+      String message = 'Terjadi kesalahan.';
+      if (e.code == 'user-not-found') {
+        message = 'Akun tidak ditemukan. Silakan register.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Password salah. Silakan coba lagi.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Format email tidak valid.';
+      } else if (e.code == 'user-disabled') {
+        message = 'Akun ini telah dinonaktifkan.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Email atau password salah.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
-  void loginWithGoogle() async {
-    setState(() => isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    const googleName = 'Google User';
-    const googleEmail = 'user@gmail.com';
-
-    await StorageService.registerUser(name: googleName, email: googleEmail, password: 'google123');
-    await StorageService.setCurrentUser(name: googleName, email: googleEmail);
-
-    if (!mounted) return;
-    setState(() => isLoading = false);
-
+  void loginWithGoogle() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: const Text('Google login successful! 🎉'), backgroundColor: AppTheme.darkTeal),
+      const SnackBar(content: Text('Fitur Google Sign-In akan segera hadir!'), backgroundColor: Colors.orange),
     );
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomNav()));
   }
 
   void showMessage(String message) {
@@ -122,7 +138,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 180,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      // PERBAIKAN: Menghapus const pada Center & Icon karena warna dinamis
                       return Container(
                         width: 180,
                         height: 180,
@@ -137,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
                 Text('Welcome back!', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.txt)),
                 const SizedBox(height: 8),
-                Text('Log in to continue focusing..', style: TextStyle(color: AppTheme.txtGrey)),
+                Text('Log in to continue focusing...', style: TextStyle(color: AppTheme.txtGrey)),
                 const SizedBox(height: 30),
                 TextFormField(
                   controller: emailController,
@@ -163,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () => showMessage('The password reset feature will be available once the backend is added..'),
+                    onPressed: () => showMessage('Fitur lupa password akan segera hadir.'),
                     child: const Text('Forgot Password?'),
                   ),
                 ),
@@ -229,7 +244,14 @@ class _GoogleButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.g_mobiledata, size: 30, color: Color(0xFF4285F4)),
+            Image.asset(
+              'assets/images/google_logo.png',
+              width: 24,
+              height: 24,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.g_mobiledata, size: 30, color: Color(0xFF4285F4));
+              },
+            ),
             const SizedBox(width: 8),
             Text(text, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.txt)),
           ],

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // 1. TAMBAHAN IMPORT FIRESTORE
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import 'login_screen.dart';
@@ -16,9 +18,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmController = TextEditingController();
+
   bool hidePassword = true;
   bool hideConfirm = true;
   bool isLoading = false;
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void dispose() {
@@ -58,57 +63,76 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void register() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 500));
 
-    final success = await StorageService.registerUser(
-      name: nameController.text.trim(),
-      email: emailController.text.trim(),
-      password: passwordController.text,
-    );
-
-    if (!mounted) return;
-    setState(() => isLoading = false);
-
-    if (!success) {
-      // PERBAIKAN: Hapus const pada SnackBar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('The email is already registered. Try another email or log in..'), backgroundColor: Colors.red),
+    try {
+      // 1. Buat akun di Firebase Authentication
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text,
       );
-      return;
-    }
 
-    // PERBAIKAN: Hapus const pada SnackBar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: const Text('Registration successful! Please log in.'), backgroundColor: AppTheme.darkTeal),
-    );
+      // 2. Simpan nama user ke profil Firebase Auth
+      await userCredential.user?.updateDisplayName(nameController.text.trim());
 
-    Future.delayed(const Duration(milliseconds: 500), () {
+      // 3. SIMPAN DATA KE CLOUD FIRESTORE (GUDANG DATABASE)
+      // Data ini yang nanti akan muncul di menu Firestore Console
+      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+        'uid': userCredential.user!.uid,
+        'name': nameController.text.trim(),
+        'email': emailController.text.trim(),
+        'xp': 0, // XP awal
+        'streak': 0, // Streak awal
+        'created_at': FieldValue.serverTimestamp(), // Waktu pendaftaran
+      });
+
+      // 4. Simpan ke local storage (biar UI HomeScreen kamu yang lama tetap jalan)
+      await StorageService.setCurrentUser(
+          name: nameController.text.trim(),
+          email: emailController.text.trim()
+      );
+
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-    });
+      setState(() => isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: const Text('Registration successful! Please log in.'), backgroundColor: AppTheme.darkTeal),
+      );
+
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      });
+
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+
+      String message = 'Terjadi kesalahan.';
+      if (e.code == 'weak-password') {
+        message = 'Password terlalu lemah (minimal 6 karakter).';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'Email sudah terdaftar. Silakan gunakan email lain.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Format email tidak valid.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
-  void registerWithGoogle() async {
-    setState(() => isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    const googleName = 'Google User';
-    const googleEmail = 'user@gmail.com';
-
-    await StorageService.registerUser(name: googleName, email: googleEmail, password: 'google123');
-    await StorageService.setCurrentUser(name: googleName, email: googleEmail);
-
-    if (!mounted) return;
-    setState(() => isLoading = false);
-
-    // PERBAIKAN: Hapus const pada SnackBar
+  // Fitur Google Sign-In bisa ditambahkan nanti
+  void registerWithGoogle() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: const Text('Registration with Google successful! 🎉'), backgroundColor: AppTheme.darkTeal),
+      const SnackBar(content: Text('Fitur Google Sign-In akan segera hadir!'), backgroundColor: Colors.orange),
     );
-
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-    });
   }
 
   @override
@@ -130,7 +154,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     height: 130,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      // PERBAIKAN: Hapus const
                       return Container(
                         width: 130,
                         height: 130,
@@ -219,7 +242,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.g_mobiledata, size: 30, color: Color(0xFF4285F4)),
+                        Image.asset(
+                          'assets/images/google_logo.png',
+                          width: 24,
+                          height: 24,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.g_mobiledata, size: 30, color: Color(0xFF4285F4));
+                          },
+                        ),
                         const SizedBox(width: 8),
                         Text('Sign up with Google', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.txt)),
                       ],

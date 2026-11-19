@@ -4,7 +4,6 @@ import 'package:audioplayers/audioplayers.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../services/music_service.dart';
-// import '../models/music_model.dart'; <-- DIHAPUS KARENA TIDAK DIPAKAI
 
 class GangTimerScreen extends StatefulWidget {
   final String gangName;
@@ -65,6 +64,9 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
 
     _loadXp();
     MusicService.instance.addListener(_onMusicChanged);
+
+    // Cek apakah sebelumnya timer sudah berjalan (misal HP mati)
+    _checkSavedTimer();
   }
 
   @override
@@ -87,17 +89,47 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     if (mounted) setState(() => userXp = xp);
   }
 
+  // --- LOGIKA BARU: ANTI HP MATI ---
+  Future<void> _checkSavedTimer() async {
+    final endTime = await StorageService.getTimerEndTime();
+    if (endTime != null) {
+      final now = DateTime.now();
+      if (now.isAfter(endTime)) {
+        // Timer selesai saat HP mati
+        setState(() {
+          isRunning = false;
+          remainingSeconds = 0;
+        });
+        await StorageService.clearTimer();
+        _completeGangSession();
+      } else {
+        // Timer masih berjalan, hitung sisa
+        final diff = endTime.difference(now).inSeconds;
+        setState(() {
+          isRunning = true;
+          remainingSeconds = diff;
+        });
+        _startTicker();
+      }
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused && isRunning) {
-      _handleExitPenalty();
+    // JIKA APLIKASI DI-MINIMIZE/HP MATI:
+    // Kita tidak lagi memanggil _handleExitPenalty() di sini agar timer tetap jalan.
+    // Kita hanya mengecek sisa waktu saat aplikasi dibuka kembali.
+    if (state == AppLifecycleState.resumed) {
+      _checkSavedTimer();
     }
   }
+  // ---------------------------------
 
   void _handleExitPenalty() {
     _timer?.cancel();
     _freezeTimer?.cancel();
+    StorageService.clearTimer(); // Hapus timer jika user memaksa keluar
     setState(() {
       isRunning = false;
       isFailed = true;
@@ -106,7 +138,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     });
   }
 
-  void _toggleTimer() {
+  void _toggleTimer() async {
     if (isFailed) {
       setState(() {
         isFailed = false;
@@ -116,31 +148,62 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
     }
 
     if (isRunning) {
+      // PAUSE TIMER
       _timer?.cancel();
       _freezeTimer?.cancel();
+      await StorageService.clearTimer(); // Hapus target waktu di storage
       setState(() {
         isRunning = false;
         isFrozen = false;
         freezeRemainingSeconds = 0;
       });
     } else {
+      // START TIMER
       setState(() => isRunning = true);
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (isFrozen) return;
 
+      // Simpan waktu target ke storage (Waktu sekarang + sisa detik)
+      final endTime = DateTime.now().add(Duration(seconds: remainingSeconds));
+      await StorageService.saveTimerEndTime(endTime);
+
+      _startTicker();
+    }
+  }
+
+  void _startTicker() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (isFrozen) return;
+
+      // Cek sisa waktu dari storage (agar akurat saat HP baru dinyalakan)
+      final endTime = await StorageService.getTimerEndTime();
+      if (endTime != null) {
+        final diff = endTime.difference(DateTime.now()).inSeconds;
+        if (diff <= 0) {
+          _timer?.cancel();
+          _completeGangSession();
+        } else {
+          if (mounted) setState(() => remainingSeconds = diff);
+        }
+      } else {
+        // Fallback jika storage gagal dibaca
         if (remainingSeconds > 0) {
-          setState(() => remainingSeconds--);
+          if (mounted) setState(() => remainingSeconds--);
         } else {
           _timer?.cancel();
           _completeGangSession();
         }
-      });
-    }
+      }
+    });
   }
 
   Future<void> _completeGangSession() async {
-    setState(() => isRunning = false);
+    if (!mounted) return;
+    setState(() {
+      isRunning = false;
+      remainingSeconds = 0;
+    });
     MusicService.instance.stop();
+    await StorageService.clearTimer();
 
     int currentXp = await StorageService.loadXp();
     await StorageService.saveXp(currentXp + rewardXp);
@@ -179,7 +242,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
       _loadXp();
       MusicService.instance.userXp = await StorageService.loadXp();
 
-      if (!mounted) return false; // <-- PENGAMAN AGAR TIDAK ERROR
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('-$amount XP. $featureName berhasil digunakan!'), backgroundColor: AppTheme.darkTeal),
       );
@@ -232,8 +295,13 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
 
     bool success = await _payXp(costAddTime, 'Tambah Waktu (+5 Menit)');
     if (success) {
+      // Update sisa waktu dan simpan target waktu baru
+      final newRemaining = remainingSeconds + (5 * 60);
+      final newEndTime = DateTime.now().add(Duration(seconds: newRemaining));
+      await StorageService.saveTimerEndTime(newEndTime);
+
       setState(() {
-        remainingSeconds += 5 * 60;
+        remainingSeconds = newRemaining;
         totalSeconds += 5 * 60;
       });
     }
@@ -360,6 +428,7 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
                     TextButton(
                       onPressed: () {
                         MusicService.instance.stop();
+                        _handleExitPenalty(); // Paksa gagal jika user menekan tombol keluar
                         Navigator.pop(context);
                         Navigator.pop(context);
                       },
@@ -397,235 +466,248 @@ class _GangTimerScreenState extends State<GangTimerScreen> with WidgetsBindingOb
           )
         ],
       ),
+      // BUNGKUS DENGAN LAYOUT BUILDER & SCROLL VIEW AGAR ANTI OVERFLOW
       body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
               children: [
-                const SizedBox(height: 30),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
-                  child: Text('Sesi Gang (${widget.durationMinutes} Menit)', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
-                ),
-                const Spacer(),
+                SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 30),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+                            child: Text('Sesi Gang (${widget.durationMinutes} Menit)', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
+                          ),
+                          const Spacer(),
 
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 280,
-                      height: 280,
-                      child: CircularProgressIndicator(
-                        value: remainingSeconds / totalSeconds,
-                        strokeWidth: 12,
-                        backgroundColor: AppTheme.border,
-                        color: isFailed ? Colors.red : (isFrozen ? Colors.blue : AppTheme.primary),
-                      ),
-                    ),
-                    Column(
-                      children: [
-                        SizedBox(
-                          width: 200,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              _formatTime(remainingSeconds),
-                              style: TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: AppTheme.txt),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          isFailed
-                              ? 'GAGAL'
-                              : (isFrozen
-                              ? 'FROZEN ❄️ ($freezeRemainingSeconds s)'
-                              : (isRunning ? 'FOCUSING...' : 'SIAP')),
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2,
-                              color: isFailed ? Colors.red : (isFrozen ? Colors.blue : AppTheme.primary)
-                          ),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-                const Spacer(),
-
-                if (isFailed)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      children: [
-                        Text('Kamu keluar dari aplikasi! Sesi dibatalkan.', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: _toggleTimer,
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                            child: const Text('ULANGI SESI (RESET)'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildActionButton(
-                        icon: Icons.ac_unit,
-                        label: isFrozen ? 'Unfreeze' : 'Freeze\n(20s)',
-                        color: isFrozen ? Colors.blue : AppTheme.card,
-                        iconColor: isFrozen ? Colors.white : Colors.blue,
-                        onTap: _toggleFreeze,
-                      ),
-                      const SizedBox(width: 24),
-                      GestureDetector(
-                        onTap: _toggleTimer,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary,
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.4), blurRadius: 15)],
-                          ),
-                          child: Icon(isRunning ? Icons.pause : Icons.play_arrow, size: 40, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      _buildActionButton(
-                        icon: Icons.add_alarm,
-                        label: '+5 Min\n($costAddTime XP)',
-                        color: AppTheme.card,
-                        iconColor: AppTheme.primary,
-                        onTap: _addTime,
-                      ),
-                    ],
-                  ),
-
-                if (MusicService.instance.isPlaying || MusicService.instance.currentPosition > Duration.zero)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(MusicService.instance.current.icon, color: AppTheme.primary, size: 28),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Stack(
+                            alignment: Alignment.center,
                             children: [
-                              Text(MusicService.instance.current.title, style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              Text('Didengar oleh semua anggota', style: TextStyle(fontSize: 10, color: AppTheme.txtGrey)),
+                              SizedBox(
+                                width: 280,
+                                height: 280,
+                                child: CircularProgressIndicator(
+                                  value: remainingSeconds / totalSeconds,
+                                  strokeWidth: 12,
+                                  backgroundColor: AppTheme.border,
+                                  color: isFailed ? Colors.red : (isFrozen ? Colors.blue : AppTheme.primary),
+                                ),
+                              ),
+                              Column(
+                                children: [
+                                  SizedBox(
+                                    width: 200,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        _formatTime(remainingSeconds),
+                                        style: TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: AppTheme.txt),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    isFailed
+                                        ? 'GAGAL'
+                                        : (isFrozen
+                                        ? 'FROZEN ❄️ ($freezeRemainingSeconds s)'
+                                        : (isRunning ? 'FOCUSING...' : 'SIAP')),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 2,
+                                        color: isFailed ? Colors.red : (isFrozen ? Colors.blue : AppTheme.primary)
+                                    ),
+                                  ),
+                                ],
+                              )
                             ],
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            MusicService.instance.togglePlay(forcePlay: true);
-                            setState((){});
-                          },
-                          icon: Icon(MusicService.instance.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, color: AppTheme.primary, size: 32),
-                        )
-                      ],
-                    ),
-                  ),
+                          const Spacer(),
 
-                const SizedBox(height: 10),
-
-                if (!isFailed)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    color: AppTheme.card,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: stickerList.map((sticker) {
-                        return GestureDetector(
-                          onTap: () => _sendSticker(sticker['image']!, sticker['sound']!),
-                          child: Container(
-                            width: 55,
-                            height: 55,
-                            decoration: BoxDecoration(
-                                color: AppTheme.bg,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: AppTheme.border, width: 1.5)
+                          if (isFailed)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                children: [
+                                  const Text('Kamu keluar dari aplikasi! Sesi dibatalkan.', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: _toggleTimer,
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                      child: const Text('ULANGI SESI (RESET)'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildActionButton(
+                                  icon: Icons.ac_unit,
+                                  label: isFrozen ? 'Unfreeze' : 'Freeze\n(20s)',
+                                  color: isFrozen ? Colors.blue : AppTheme.card,
+                                  iconColor: isFrozen ? Colors.white : Colors.blue,
+                                  onTap: _toggleFreeze,
+                                ),
+                                const SizedBox(width: 24),
+                                GestureDetector(
+                                  onTap: _toggleTimer,
+                                  child: Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primary,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.4), blurRadius: 15)],
+                                    ),
+                                    child: Icon(isRunning ? Icons.pause : Icons.play_arrow, size: 40, color: Colors.white),
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                _buildActionButton(
+                                  icon: Icons.add_alarm,
+                                  label: '+5 Min\n($costAddTime XP)',
+                                  color: AppTheme.card,
+                                  iconColor: AppTheme.primary,
+                                  onTap: _addTime,
+                                ),
+                              ],
                             ),
-                            child: ClipOval(
-                              child: Image.asset(
-                                sticker['image']!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Center(child: Icon(Icons.broken_image, size: 24, color: Colors.grey));
-                                },
+
+                          if (MusicService.instance.isPlaying || MusicService.instance.currentPosition > Duration.zero)
+                            Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(MusicService.instance.current.icon, color: AppTheme.primary, size: 28),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(MusicService.instance.current.title, style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.txt), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        Text('Didengar oleh semua anggota', style: TextStyle(fontSize: 10, color: AppTheme.txtGrey)),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      MusicService.instance.togglePlay(forcePlay: true);
+                                      setState((){});
+                                    },
+                                    icon: Icon(MusicService.instance.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, color: AppTheme.primary, size: 32),
+                                  )
+                                ],
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+
+                          const SizedBox(height: 10),
+
+                          if (!isFailed)
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              color: AppTheme.card,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: stickerList.map((sticker) {
+                                  return GestureDetector(
+                                    onTap: () => _sendSticker(sticker['image']!, sticker['sound']!),
+                                    child: Container(
+                                      width: 55,
+                                      height: 55,
+                                      decoration: BoxDecoration(
+                                          color: AppTheme.bg,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: AppTheme.border, width: 1.5)
+                                      ),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          sticker['image']!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return const Center(child: Icon(Icons.broken_image, size: 24, color: Colors.grey));
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (activeStickerImage.isNotEmpty)
+                  Positioned(
+                    bottom: 80,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _stickerController,
+                        builder: (context, child) {
+                          final value = _stickerController.value;
+
+                          double scale = 1.0;
+                          if (value < 0.2) {
+                            scale = Curves.easeOutBack.transform(value / 0.2);
+                          }
+
+                          double translateY = -120 * value;
+
+                          double opacity = 1.0;
+                          if (value > 0.7) {
+                            opacity = 1.0 - ((value - 0.7) / 0.3);
+                          }
+
+                          return Transform.translate(
+                            offset: Offset(0, translateY),
+                            child: Transform.scale(
+                              scale: scale,
+                              child: Opacity(
+                                opacity: opacity.clamp(0.0, 1.0),
+                                child: Center(
+                                  child: Image.asset(
+                                    activeStickerImage,
+                                    width: 150,
+                                    height: 150,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return const Icon(Icons.image_not_supported, size: 100, color: Colors.grey);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
               ],
-            ),
-
-            if (activeStickerImage.isNotEmpty)
-              Positioned(
-                bottom: 80,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: _stickerController,
-                    builder: (context, child) {
-                      final value = _stickerController.value;
-
-                      double scale = 1.0;
-                      if (value < 0.2) {
-                        scale = Curves.easeOutBack.transform(value / 0.2);
-                      }
-
-                      double translateY = -120 * value;
-
-                      double opacity = 1.0;
-                      if (value > 0.7) {
-                        opacity = 1.0 - ((value - 0.7) / 0.3);
-                      }
-
-                      return Transform.translate(
-                        offset: Offset(0, translateY),
-                        child: Transform.scale(
-                          scale: scale,
-                          child: Opacity(
-                            opacity: opacity.clamp(0.0, 1.0),
-                            child: Center(
-                              child: Image.asset(
-                                activeStickerImage,
-                                width: 150,
-                                height: 150,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.image_not_supported, size: 100, color: Colors.grey);
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-          ],
+            );
+          },
         ),
       ),
     );

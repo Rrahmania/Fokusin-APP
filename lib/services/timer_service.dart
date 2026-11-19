@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:vibration/vibration.dart'; // TAMBAHAN IMPORT
 import 'storage_service.dart';
 import 'challenge_service.dart';
 
@@ -105,8 +106,17 @@ class TimerService extends ChangeNotifier {
     final context = navigatorKey.currentContext;
     if (context == null) return;
 
+    // 1. MULAI GETARAN (Bergetar 1 detik, diam 1 detik, diulang terus)
+    Vibration.hasVibrator().then((bool? hasVibrator) {
+      if (hasVibrator == true) {
+        Vibration.vibrate(pattern: [1000, 1000], repeat: 0);
+      }
+    });
+
+    // 2. TAMPILKAN DIALOG
     showDialog(
       context: context,
+      barrierDismissible: false, // User WAJIB klik tombol OK
       builder: (_) => AlertDialog(
         title: Text('$selectedActivity selesai! 🎉'),
         content: Column(
@@ -135,7 +145,14 @@ class TimerService extends ChangeNotifier {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          TextButton(
+            onPressed: () {
+              // 3. HENTIKAN GETARAN SAAT TOMBOL OK DIKLIK
+              Vibration.cancel();
+              Navigator.pop(context);
+            },
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
@@ -144,6 +161,7 @@ class TimerService extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    Vibration.cancel(); // Pastikan getar berhenti jika aplikasi ditutup paksa
     super.dispose();
   }
 }

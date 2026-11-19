@@ -560,4 +560,27 @@ class StorageService {
     final yesterday = DateTime.now().subtract(const Duration(days: 1));
     return date.year == yesterday.year && date.month == yesterday.month && date.day == yesterday.day;
   }
+
+  // =========================================================================
+  // FUNGSI BARU UNTUK TIMER GANG (HP MATI TETAP JALAN)
+  // =========================================================================
+
+  static Future<void> saveTimerEndTime(DateTime endTime) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('gang_timer_end', endTime.toIso8601String());
+  }
+
+  static Future<DateTime?> getTimerEndTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final endTimeString = prefs.getString('gang_timer_end');
+    if (endTimeString != null) {
+      return DateTime.parse(endTimeString);
+    }
+    return null;
+  }
+
+  static Future<void> clearTimer() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('gang_timer_end');
+  }
 }
